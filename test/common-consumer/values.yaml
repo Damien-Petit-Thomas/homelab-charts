@@ -1,0 +1,29 @@
+nameOverride: ""
+fullnameOverride: ""
+commonLabels: {}
+
+serviceAccount:
+  create: false
+  name: ""
+
+image:
+  repository: registry.example.org/app
+  tag: "1.2.3"
+  digest: sha256:0000000000000000000000000000000000000000000000000000000000000001
+
+podSecurityContext:
+  runAsUser: 1000
+  runAsGroup: 1000
+  fsGroup: 1000
+
+securityContext: {}
+
+caTrust:
+  enabled: false
+  configMap: homelab-ca
+  image:
+    repository: ghcr.io/damien-petit-thomas/ca-updater
+    tag: "1.0.1"
+    digest: sha256:1e583a3a7142d3d0f1e209767578ceef87bc687241df50898bca24200f2823d6
+
+externalSecrets: {}

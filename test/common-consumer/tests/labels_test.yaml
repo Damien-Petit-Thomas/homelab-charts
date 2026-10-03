@@ -1,0 +1,63 @@
+suite: labels
+templates:
+  - templates/deployment.yaml
+release:
+  name: rel
+tests:
+  - it: renders the standard labels, appVersion made label-safe
+    asserts:
+      - equal:
+          path: metadata.labels
+          value:
+            app.kubernetes.io/component: server
+            app.kubernetes.io/instance: rel
+            app.kubernetes.io/managed-by: Helm
+            app.kubernetes.io/name: common-consumer
+            app.kubernetes.io/version: 1.2.3_build.4
+            helm.sh/chart: common-consumer-0.0.0
+
+  - it: keeps the selector to the immutable subset
+    asserts:
+      - equal:
+          path: spec.selector.matchLabels
+          value:
+            app.kubernetes.io/component: server
+            app.kubernetes.io/instance: rel
+            app.kubernetes.io/name: common-consumer
+
+  - it: matches the pod template labels with the selector
+    asserts:
+      - isSubset:
+          path: spec.template.metadata.labels
+          content:
+            app.kubernetes.io/component: server
+            app.kubernetes.io/instance: rel
+            app.kubernetes.io/name: common-consumer
+
+  - it: adds commonLabels to metadata but never to the selector
+    set:
+      commonLabels:
+        team: homelab
+    asserts:
+      - equal:
+          path: metadata.labels.team
+          value: homelab
+      - notExists:
+          path: spec.selector.matchLabels.team
+
+  - it: renders non-string commonLabels as strings
+    set:
+      commonLabels:
+        tier: 1
+    asserts:
+      - equal:
+          path: metadata.labels.tier
+          value: "1"
+
+  - it: refuses a commonLabel that redefines a standard label
+    set:
+      commonLabels:
+        app.kubernetes.io/name: other
+    asserts:
+      - failedTemplate:
+          errorPattern: 'commonLabels may not redefine the standard label "app.kubernetes.io/name"'

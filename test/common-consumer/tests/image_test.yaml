@@ -1,0 +1,76 @@
+suite: image
+templates:
+  - templates/deployment.yaml
+release:
+  name: rel
+tests:
+  - it: pins tag and digest
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: registry.example.org/app:1.2.3@sha256:0000000000000000000000000000000000000000000000000000000000000001
+
+  - it: accepts a digest without a tag
+    set:
+      image.tag: ""
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: registry.example.org/app@sha256:0000000000000000000000000000000000000000000000000000000000000001
+
+  - it: renders a numeric tag as a string
+    set:
+      image.tag: 2
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: registry.example.org/app:2@sha256:0000000000000000000000000000000000000000000000000000000000000001
+
+  - it: requires a digest
+    set:
+      image.digest: null
+    asserts:
+      - failedTemplate:
+          errorPattern: 'image.digest is required: images are pinned by digest'
+
+  - it: requires a repository
+    set:
+      image.repository: null
+    asserts:
+      - failedTemplate:
+          errorPattern: 'image.repository is required'
+
+  - it: rejects a malformed digest
+    set:
+      image.digest: sha256:abc
+    asserts:
+      - failedTemplate:
+          errorPattern: 'image.digest "sha256:abc" is not a sha256 digest'
+
+  - it: rejects an uppercase digest
+    set:
+      image.digest: sha256:000000000000000000000000000000000000000000000000000000000000000A
+    asserts:
+      - failedTemplate:
+          errorPattern: 'is not a sha256 digest'
+
+  - it: rejects the latest tag
+    set:
+      image.tag: latest
+    asserts:
+      - failedTemplate:
+          errorPattern: 'image.tag "latest" is not allowed'
+
+  - it: rejects a digest pasted into the tag
+    set:
+      image.tag: 1.2.3@sha256:0000000000000000000000000000000000000000000000000000000000000001
+    asserts:
+      - failedTemplate:
+          errorPattern: 'image.tag ".*" contains a digest: set it in image.digest'
+
+  - it: rejects a digest pasted into the repository
+    set:
+      image.repository: registry.example.org/app@sha256:0000000000000000000000000000000000000000000000000000000000000001
+    asserts:
+      - failedTemplate:
+          errorPattern: 'image.repository ".*" contains a digest: set it in image.digest'

@@ -1,0 +1,47 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "homelab-common.fullname" . }}
+  labels:
+    {{- include "homelab-common.labels" (dict "context" $ "component" "server") | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "homelab-common.selectorLabels" (dict "context" $ "component" "server") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "homelab-common.labels" (dict "context" $ "component" "server") | nindent 8 }}
+    spec:
+      serviceAccountName: {{ include "homelab-common.serviceAccountName" . }}
+      automountServiceAccountToken: false
+      securityContext:
+        {{- include "homelab-common.podSecurityContext" (dict "securityContext" .Values.podSecurityContext) | nindent 8 }}
+      {{- with include "homelab-common.caTrust.initContainer" (dict "caTrust" .Values.caTrust) }}
+      initContainers:
+        {{- . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: app
+          image: {{ include "homelab-common.image" (dict "image" .Values.image "path" "image") }}
+          securityContext:
+            {{- include "homelab-common.containerSecurityContext" (dict "securityContext" .Values.securityContext "path" "securityContext") | nindent 12 }}
+          {{- with include "homelab-common.caTrust.env" (dict "caTrust" .Values.caTrust) }}
+          env:
+            {{- . | nindent 12 }}
+          {{- end }}
+          {{- with include "homelab-common.caTrust.volumeMounts" (dict "caTrust" .Values.caTrust) }}
+          volumeMounts:
+            {{- . | nindent 12 }}
+          {{- end }}
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+            limits:
+              memory: 64Mi
+      {{- with include "homelab-common.caTrust.volumes" (dict "caTrust" .Values.caTrust) }}
+      volumes:
+        {{- . | nindent 8 }}
+      {{- end }}
