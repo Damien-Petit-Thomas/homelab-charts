@@ -1,0 +1,40 @@
+domain: https://vaultwarden.example.org
+admin:
+  existingSecret: vaultwarden-admin
+sso:
+  enabled: true
+  authority: https://sso.example.org/realms/home
+  clientSecret:
+    existingSecret: vaultwarden-oidc
+caTrust:
+  enabled: true
+  configMap: homelab-ca
+externalSecrets:
+  oidc:
+    secretStoreRef:
+      name: vault-backend
+    target:
+      name: vaultwarden-oidc
+    data:
+      - secretKey: client-secret
+        remoteRef:
+          key: homelab/vaultwarden-oidc
+          property: client-secret
+ingress:
+  enabled: true
+  className: traefik
+  annotations:
+    cert-manager.io/issuer: step-issuer
+  host: vaultwarden.example.org
+  tls:
+    secretName: vaultwarden-tls
+networkPolicy:
+  extraEgress:
+    - to:
+        - ipBlock:
+            cidr: 192.0.2.10/32
+      ports:
+        - port: 443
+          protocol: TCP
+backup:
+  enabled: true

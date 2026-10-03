@@ -1,0 +1,18 @@
+Vaultwarden {{ .Chart.AppVersion }} is deployed as {{ include "homelab-common.fullname" . }} in {{ .Release.Namespace }}.
+
+URL: {{ .Values.domain }}
+{{- if not .Values.admin.existingSecret }}
+Admin panel: disabled (admin.existingSecret is empty).
+{{- end }}
+{{- if .Values.sso.enabled }}
+SSO: {{ .Values.sso.authority }}{{ if not .Values.sso.only }}; password login stays available if the provider is down{{ end }}.
+{{- end }}
+{{- if .Values.backup.enabled }}
+Backups: {{ .Values.backup.schedule }} ({{ .Values.backup.timeZone }}), {{ .Values.backup.retention }} kept in {{ include "vaultwarden.backupClaim" . }}.
+Run one now:
+  kubectl -n {{ .Release.Namespace }} create job --from=cronjob/{{ include "homelab-common.fullname" . }}-backup {{ include "homelab-common.fullname" . }}-backup-manual
+{{- else }}
+Backups: disabled. Enable backup.enabled before storing anything you cannot lose.
+{{- end }}
+
+Check: helm test {{ .Release.Name }} -n {{ .Release.Namespace }}

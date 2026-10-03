@@ -1,0 +1,15 @@
+# Whole-chart snapshot with every feature on: any change to a rendered
+# manifest shows in review as a snapshot diff. Update with `untt -u`.
+suite: snapshot
+# Pinned so that release-please's version bump does not break the snapshot.
+chart:
+  version: 0.0.0-snapshot
+release:
+  name: vw
+  namespace: vaultwarden
+values:
+  - ../values/full.yaml
+tests:
+  - it: renders every resource as reviewed
+    asserts:
+      - matchSnapshot: {}

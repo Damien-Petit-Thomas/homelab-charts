@@ -1,0 +1,64 @@
+{{- if .Values.networkPolicy.enabled }}
+{{- $np := .Values.networkPolicy }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "homelab-common.fullname" . }}
+  labels:
+    {{- include "homelab-common.labels" (dict "context" $ "component" "server") | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "homelab-common.selectorLabels" (dict "context" $ "component" "server") | nindent 6 }}
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ $np.ingressController.namespace }}
+          podSelector:
+            matchLabels:
+              {{- toYaml $np.ingressController.podLabels | nindent 14 }}
+        # helm test pod
+        - podSelector:
+            matchLabels:
+              {{- include "vaultwarden.clientLabel" . | nindent 14 }}
+      ports:
+        - port: http
+          protocol: TCP
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ $np.dns.namespace }}
+          podSelector:
+            matchLabels:
+              {{- toYaml $np.dns.podLabels | nindent 14 }}
+      ports:
+        - port: 53
+          protocol: UDP
+        - port: 53
+          protocol: TCP
+    {{- with $np.extraEgress }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+{{- if .Values.backup.enabled }}
+---
+# The backup job only reads /data and writes the backup volume: no traffic.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "homelab-common.fullname" . }}-backup
+  labels:
+    {{- include "homelab-common.labels" (dict "context" $ "component" "backup") | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "homelab-common.selectorLabels" (dict "context" $ "component" "backup") | nindent 6 }}
+  policyTypes:
+    - Ingress
+    - Egress
+{{- end }}
+{{- end }}

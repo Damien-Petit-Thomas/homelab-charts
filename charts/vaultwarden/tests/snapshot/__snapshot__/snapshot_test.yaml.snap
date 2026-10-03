@@ -1,0 +1,678 @@
+renders every resource as reviewed:
+  1: |
+    raw: |
+      Vaultwarden 1.37.3 is deployed as vw-vaultwarden in vaultwarden.
+
+      URL: https://vaultwarden.example.org
+      SSO: https://sso.example.org/realms/home; password login stays available if the provider is down.
+      Backups: 17 3 * * * (Etc/UTC), 14 kept in vw-vaultwarden-backup.
+      Run one now:
+        kubectl -n vaultwarden create job --from=cronjob/vw-vaultwarden-backup vw-vaultwarden-backup-manual
+
+      Check: helm test vw -n vaultwarden
+  2: |
+    apiVersion: v1
+    data:
+      backup.sh: |-
+        #!/bin/sh
+        # Consistent backup of a Vaultwarden data folder.
+        #
+        # `vaultwarden backup` snapshots the live database with VACUUM INTO over a
+        # read-only connection: a transactionally consistent copy, unlike a copy of
+        # db.sqlite3 while its WAL is being written. The snapshot, the RSA key that
+        # signs sessions, attachments, sends and config.json go into one archive.
+        # icon_cache is left out: it is rebuilt on demand.
+        #
+        # Environment: DATA_FOLDER (default /data), BACKUP_DIR (default /backup),
+        # RETENTION (archives kept, default 14).
+        set -eu
+        umask 077
+
+        DATA_FOLDER="${DATA_FOLDER:-/data}"
+        BACKUP_DIR="${BACKUP_DIR:-/backup}"
+        RETENTION="${RETENTION:-14}"
+
+        fail() { echo "backup: $*" >&2; exit 1; }
+
+        case "$RETENTION" in
+          ''|*[!0-9]*|0) fail "RETENTION must be a positive integer, got '$RETENTION'" ;;
+        esac
+        [ -f "$DATA_FOLDER/db.sqlite3" ] || fail "no database at $DATA_FOLDER/db.sqlite3"
+        [ -w "$BACKUP_DIR" ] || fail "$BACKUP_DIR is not writable by uid $(id -u)"
+
+        out="$(/vaultwarden backup)" || fail "vaultwarden backup failed: $out"
+        snapshot="$(printf '%s\n' "$out" | sed -n "s/^Backup to '\(.*\)' was successful\$/\1/p")"
+        [ -n "$snapshot" ] && [ -s "$snapshot" ] || fail "no snapshot reported: $out"
+
+        stamp="$(date -u +%Y%m%dT%H%M%SZ)"
+        archive="$BACKUP_DIR/vaultwarden-$stamp.tar.gz"
+        tmp="$BACKUP_DIR/.vaultwarden-$stamp.tar.gz.tmp"
+        trap 'rm -f "$snapshot" "$tmp"' EXIT
+
+        set -- "${snapshot#"$DATA_FOLDER"/}"
+        for item in rsa_key.pem attachments sends config.json; do
+          [ -e "$DATA_FOLDER/$item" ] && set -- "$@" "$item"
+        done
+
+        # The snapshot is stored as db.sqlite3: restoring is a plain extraction.
+        tar -C "$DATA_FOLDER" \
+          --transform "s|^${1}\$|db.sqlite3|" \
+          -czf "$tmp" "$@"
+
+        tar -tzf "$tmp" | grep -qx 'db.sqlite3' || fail "archive has no db.sqlite3"
+        if [ -e "$DATA_FOLDER/rsa_key.pem" ]; then
+          tar -tzf "$tmp" | grep -qx 'rsa_key.pem' || fail "archive has no rsa_key.pem"
+        fi
+        mv "$tmp" "$archive"
+        echo "backup: wrote $archive ($(wc -c < "$archive") bytes)"
+
+        # Retention: globs expand sorted, and UTC timestamps sort chronologically,
+        # so the oldest archives come first.
+        set -- "$BACKUP_DIR"/vaultwarden-[0-9]*T[0-9]*Z.tar.gz
+        excess=$(($# - RETENTION))
+        for old in "$@"; do
+          [ "$excess" -gt 0 ] || break
+          rm -f "$old"
+          echo "backup: removed ${old##*/} (retention $RETENTION)"
+          excess=$((excess - 1))
+        done
+      restore.sh: |-
+        #!/bin/sh
+        # Restores a backup archive into the Vaultwarden data folder.
+        #
+        # Run it with the Deployment scaled to 0 (see the chart README). Usage:
+        #   restore.sh [archive]      default: the most recent archive in BACKUP_DIR
+        #
+        # Nothing is deleted: the current files are moved to
+        # $DATA_FOLDER/.pre-restore-<timestamp>/ before extraction.
+        set -eu
+        umask 077
+
+        DATA_FOLDER="${DATA_FOLDER:-/data}"
+        BACKUP_DIR="${BACKUP_DIR:-/backup}"
+
+        fail() { echo "restore: $*" >&2; exit 1; }
+
+        if [ "$#" -gt 0 ]; then
+          archive="$1"
+        else
+          # Globs expand sorted: the last match is the most recent archive.
+          archive=""
+          for candidate in "$BACKUP_DIR"/vaultwarden-[0-9]*T[0-9]*Z.tar.gz; do
+            [ -e "$candidate" ] && archive="$candidate"
+          done
+          [ -n "$archive" ] || fail "no archive in $BACKUP_DIR"
+        fi
+        [ -f "$archive" ] || fail "archive '$archive' not found"
+        tar -tzf "$archive" | grep -qx 'db.sqlite3' || fail "'$archive' is not a Vaultwarden backup (no db.sqlite3)"
+
+        aside="$DATA_FOLDER/.pre-restore-$(date -u +%Y%m%dT%H%M%SZ)"
+        mkdir "$aside"
+        for item in db.sqlite3 db.sqlite3-wal db.sqlite3-shm rsa_key.pem attachments sends config.json; do
+          if [ -e "$DATA_FOLDER/$item" ]; then
+            mv "$DATA_FOLDER/$item" "$aside/"
+          fi
+        done
+
+        tar -xzf "$archive" -C "$DATA_FOLDER"
+        echo "restore: restored $archive into $DATA_FOLDER; previous files in $aside"
+    kind: ConfigMap
+    metadata:
+      labels:
+        app.kubernetes.io/component: backup
+        app.kubernetes.io/instance: vw
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: vaultwarden
+        app.kubernetes.io/version: 1.37.3
+        helm.sh/chart: vaultwarden-0.0.0-snapshot
+      name: vw-vaultwarden-scripts
+  3: |
+    apiVersion: batch/v1
+    kind: CronJob
+    metadata:
+      labels:
+        app.kubernetes.io/component: backup
+        app.kubernetes.io/instance: vw
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: vaultwarden
+        app.kubernetes.io/version: 1.37.3
+        helm.sh/chart: vaultwarden-0.0.0-snapshot
+      name: vw-vaultwarden-backup
+    spec:
+      concurrencyPolicy: Forbid
+      failedJobsHistoryLimit: 3
+      jobTemplate:
+        metadata:
+          labels:
+            app.kubernetes.io/component: backup
+            app.kubernetes.io/instance: vw
+            app.kubernetes.io/managed-by: Helm
+            app.kubernetes.io/name: vaultwarden
+            app.kubernetes.io/version: 1.37.3
+            helm.sh/chart: vaultwarden-0.0.0-snapshot
+        spec:
+          activeDeadlineSeconds: 900
+          backoffLimit: 2
+          template:
+            metadata:
+              labels:
+                app.kubernetes.io/component: backup
+                app.kubernetes.io/instance: vw
+                app.kubernetes.io/managed-by: Helm
+                app.kubernetes.io/name: vaultwarden
+                app.kubernetes.io/version: 1.37.3
+                helm.sh/chart: vaultwarden-0.0.0-snapshot
+            spec:
+              automountServiceAccountToken: false
+              containers:
+                - command:
+                    - /bin/sh
+                    - /scripts/backup.sh
+                  env:
+                    - name: DATA_FOLDER
+                      value: /data
+                    - name: BACKUP_DIR
+                      value: /backup
+                    - name: RETENTION
+                      value: "14"
+                  image: docker.io/vaultwarden/server:1.37.3@sha256:1587c45feaa479f1f5e8af3b00eded36bff77bcf1880cf8dbf0541706dd470e0
+                  imagePullPolicy: IfNotPresent
+                  name: backup
+                  resources:
+                    limits:
+                      memory: 128Mi
+                    requests:
+                      cpu: 10m
+                      memory: 32Mi
+                  securityContext:
+                    allowPrivilegeEscalation: false
+                    capabilities:
+                      drop:
+                        - ALL
+                    readOnlyRootFilesystem: true
+                  volumeMounts:
+                    - mountPath: /data
+                      name: data
+                    - mountPath: /backup
+                      name: backup
+                    - mountPath: /scripts
+                      name: scripts
+                      readOnly: true
+                    - mountPath: /tmp
+                      name: tmp
+              enableServiceLinks: false
+              restartPolicy: Never
+              securityContext:
+                fsGroup: 1000
+                fsGroupChangePolicy: OnRootMismatch
+                runAsGroup: 1000
+                runAsNonRoot: true
+                runAsUser: 1000
+                seccompProfile:
+                  type: RuntimeDefault
+              serviceAccountName: vw-vaultwarden
+              volumes:
+                - name: data
+                  persistentVolumeClaim:
+                    claimName: vw-vaultwarden-data
+                - name: backup
+                  persistentVolumeClaim:
+                    claimName: vw-vaultwarden-backup
+                - configMap:
+                    defaultMode: 292
+                    name: vw-vaultwarden-scripts
+                  name: scripts
+                - emptyDir:
+                    sizeLimit: 64Mi
+                  name: tmp
+      schedule: 17 3 * * *
+      startingDeadlineSeconds: 3600
+      successfulJobsHistoryLimit: 3
+      timeZone: Etc/UTC
+  4: |
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      labels:
+        app.kubernetes.io/component: server
+        app.kubernetes.io/instance: vw
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: vaultwarden
+        app.kubernetes.io/version: 1.37.3
+        helm.sh/chart: vaultwarden-0.0.0-snapshot
+      name: vw-vaultwarden
+    spec:
+      replicas: 1
+      revisionHistoryLimit: 3
+      selector:
+        matchLabels:
+          app.kubernetes.io/component: server
+          app.kubernetes.io/instance: vw
+          app.kubernetes.io/name: vaultwarden
+      strategy:
+        type: Recreate
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/component: server
+            app.kubernetes.io/instance: vw
+            app.kubernetes.io/managed-by: Helm
+            app.kubernetes.io/name: vaultwarden
+            app.kubernetes.io/version: 1.37.3
+            helm.sh/chart: vaultwarden-0.0.0-snapshot
+        spec:
+          automountServiceAccountToken: false
+          containers:
+            - env:
+                - name: DOMAIN
+                  value: https://vaultwarden.example.org
+                - name: ROCKET_PORT
+                  value: "8080"
+                - name: DATA_FOLDER
+                  value: /data
+                - name: TMP_FOLDER
+                  value: /tmp
+                - name: SIGNUPS_ALLOWED
+                  value: "false"
+                - name: INVITATIONS_ALLOWED
+                  value: "false"
+                - name: PASSWORD_HINTS_ALLOWED
+                  value: "false"
+                - name: IP_HEADER
+                  value: X-Real-IP
+                - name: LOG_LEVEL
+                  value: info
+                - name: ADMIN_TOKEN
+                  valueFrom:
+                    secretKeyRef:
+                      key: ADMIN_TOKEN
+                      name: vaultwarden-admin
+                - name: SSO_ENABLED
+                  value: "true"
+                - name: SSO_ONLY
+                  value: "false"
+                - name: SSO_AUTH_ONLY_NOT_SESSION
+                  value: "true"
+                - name: SSO_SIGNUPS_ALLOWED
+                  value: "false"
+                - name: SSO_SIGNUPS_MATCH_EMAIL
+                  value: "true"
+                - name: SSO_ALLOW_UNKNOWN_EMAIL_VERIFICATION
+                  value: "false"
+                - name: SSO_AUTHORITY
+                  value: https://sso.example.org/realms/home
+                - name: SSO_CLIENT_ID
+                  value: vaultwarden
+                - name: SSO_CLIENT_SECRET
+                  valueFrom:
+                    secretKeyRef:
+                      key: client-secret
+                      name: vaultwarden-oidc
+                - name: SSO_SCOPES
+                  value: email profile
+                - name: SSO_PKCE
+                  value: "true"
+                - name: SSL_CERT_FILE
+                  value: /etc/ssl/homelab/ca-certificates.crt
+              image: docker.io/vaultwarden/server:1.37.3@sha256:1587c45feaa479f1f5e8af3b00eded36bff77bcf1880cf8dbf0541706dd470e0
+              imagePullPolicy: IfNotPresent
+              livenessProbe:
+                failureThreshold: 3
+                httpGet:
+                  path: /alive
+                  port: http
+                periodSeconds: 30
+              name: vaultwarden
+              ports:
+                - containerPort: 8080
+                  name: http
+                  protocol: TCP
+              readinessProbe:
+                httpGet:
+                  path: /alive
+                  port: http
+                periodSeconds: 10
+              resources:
+                limits:
+                  memory: 256Mi
+                requests:
+                  cpu: 20m
+                  memory: 64Mi
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop:
+                    - ALL
+                readOnlyRootFilesystem: true
+              startupProbe:
+                failureThreshold: 30
+                httpGet:
+                  path: /alive
+                  port: http
+                periodSeconds: 5
+              volumeMounts:
+                - mountPath: /data
+                  name: data
+                - mountPath: /tmp
+                  name: tmp
+                - mountPath: /etc/ssl/homelab
+                  name: ca-trust-bundle
+                  readOnly: true
+          enableServiceLinks: false
+          initContainers:
+            - env:
+                - name: CA_SOURCE
+                  value: /custom-ca/ca.crt
+                - name: BUNDLE_OUT
+                  value: /shared-ca/ca-certificates.crt
+              image: ghcr.io/damien-petit-thomas/ca-updater:1.0.1@sha256:1e583a3a7142d3d0f1e209767578ceef87bc687241df50898bca24200f2823d6
+              imagePullPolicy: IfNotPresent
+              name: ca-trust
+              resources:
+                limits:
+                  memory: 32Mi
+                requests:
+                  cpu: 10m
+                  memory: 16Mi
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop:
+                    - ALL
+                readOnlyRootFilesystem: true
+                runAsNonRoot: true
+              volumeMounts:
+                - mountPath: /custom-ca
+                  name: ca-trust-source
+                  readOnly: true
+                - mountPath: /shared-ca
+                  name: ca-trust-bundle
+          securityContext:
+            fsGroup: 1000
+            fsGroupChangePolicy: OnRootMismatch
+            runAsGroup: 1000
+            runAsNonRoot: true
+            runAsUser: 1000
+            seccompProfile:
+              type: RuntimeDefault
+          serviceAccountName: vw-vaultwarden
+          volumes:
+            - name: data
+              persistentVolumeClaim:
+                claimName: vw-vaultwarden-data
+            - emptyDir:
+                sizeLimit: 256Mi
+              name: tmp
+            - configMap:
+                items:
+                  - key: ca.crt
+                    path: ca.crt
+                name: homelab-ca
+              name: ca-trust-source
+            - emptyDir:
+                sizeLimit: 2Mi
+              name: ca-trust-bundle
+  5: |
+    apiVersion: external-secrets.io/v1
+    kind: ExternalSecret
+    metadata:
+      labels:
+        app.kubernetes.io/instance: vw
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: vaultwarden
+        app.kubernetes.io/version: 1.37.3
+        helm.sh/chart: vaultwarden-0.0.0-snapshot
+      name: vaultwarden-oidc
+      namespace: vaultwarden
+    spec:
+      data:
+        - remoteRef:
+            key: homelab/vaultwarden-oidc
+            property: client-secret
+          secretKey: client-secret
+      refreshInterval: 1h
+      secretStoreRef:
+        kind: ClusterSecretStore
+        name: vault-backend
+      target:
+        creationPolicy: Owner
+        deletionPolicy: Retain
+        name: vaultwarden-oidc
+  6: |
+    apiVersion: networking.k8s.io/v1
+    kind: Ingress
+    metadata:
+      annotations:
+        cert-manager.io/issuer: step-issuer
+      labels:
+        app.kubernetes.io/component: server
+        app.kubernetes.io/instance: vw
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: vaultwarden
+        app.kubernetes.io/version: 1.37.3
+        helm.sh/chart: vaultwarden-0.0.0-snapshot
+      name: vw-vaultwarden
+    spec:
+      ingressClassName: traefik
+      rules:
+        - host: vaultwarden.example.org
+          http:
+            paths:
+              - backend:
+                  service:
+                    name: vw-vaultwarden
+                    port:
+                      name: http
+                path: /
+                pathType: Prefix
+      tls:
+        - hosts:
+            - vaultwarden.example.org
+          secretName: vaultwarden-tls
+  7: |
+    apiVersion: networking.k8s.io/v1
+    kind: NetworkPolicy
+    metadata:
+      labels:
+        app.kubernetes.io/component: server
+        app.kubernetes.io/instance: vw
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: vaultwarden
+        app.kubernetes.io/version: 1.37.3
+        helm.sh/chart: vaultwarden-0.0.0-snapshot
+      name: vw-vaultwarden
+    spec:
+      egress:
+        - ports:
+            - port: 53
+              protocol: UDP
+            - port: 53
+              protocol: TCP
+          to:
+            - namespaceSelector:
+                matchLabels:
+                  kubernetes.io/metadata.name: kube-system
+              podSelector:
+                matchLabels:
+                  k8s-app: kube-dns
+        - ports:
+            - port: 443
+              protocol: TCP
+          to:
+            - ipBlock:
+                cidr: 192.0.2.10/32
+      ingress:
+        - from:
+            - namespaceSelector:
+                matchLabels:
+                  kubernetes.io/metadata.name: kube-system
+              podSelector:
+                matchLabels:
+                  app.kubernetes.io/name: traefik
+            - podSelector:
+                matchLabels:
+                  vaultwarden-client: vw-vaultwarden
+          ports:
+            - port: http
+              protocol: TCP
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/component: server
+          app.kubernetes.io/instance: vw
+          app.kubernetes.io/name: vaultwarden
+      policyTypes:
+        - Ingress
+        - Egress
+  8: |
+    apiVersion: networking.k8s.io/v1
+    kind: NetworkPolicy
+    metadata:
+      labels:
+        app.kubernetes.io/component: backup
+        app.kubernetes.io/instance: vw
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: vaultwarden
+        app.kubernetes.io/version: 1.37.3
+        helm.sh/chart: vaultwarden-0.0.0-snapshot
+      name: vw-vaultwarden-backup
+    spec:
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/component: backup
+          app.kubernetes.io/instance: vw
+          app.kubernetes.io/name: vaultwarden
+      policyTypes:
+        - Ingress
+        - Egress
+  9: |
+    apiVersion: v1
+    kind: PersistentVolumeClaim
+    metadata:
+      annotations:
+        argocd.argoproj.io/sync-options: Prune=false,Delete=false
+        helm.sh/resource-policy: keep
+      labels:
+        app.kubernetes.io/component: server
+        app.kubernetes.io/instance: vw
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: vaultwarden
+        app.kubernetes.io/version: 1.37.3
+        helm.sh/chart: vaultwarden-0.0.0-snapshot
+      name: vw-vaultwarden-data
+    spec:
+      accessModes:
+        - ReadWriteOnce
+      resources:
+        requests:
+          storage: 1Gi
+  10: |
+    apiVersion: v1
+    kind: PersistentVolumeClaim
+    metadata:
+      annotations:
+        argocd.argoproj.io/sync-options: Prune=false,Delete=false
+        helm.sh/resource-policy: keep
+      labels:
+        app.kubernetes.io/component: backup
+        app.kubernetes.io/instance: vw
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: vaultwarden
+        app.kubernetes.io/version: 1.37.3
+        helm.sh/chart: vaultwarden-0.0.0-snapshot
+      name: vw-vaultwarden-backup
+    spec:
+      accessModes:
+        - ReadWriteOnce
+      resources:
+        requests:
+          storage: 2Gi
+  11: |
+    apiVersion: v1
+    kind: Service
+    metadata:
+      labels:
+        app.kubernetes.io/component: server
+        app.kubernetes.io/instance: vw
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: vaultwarden
+        app.kubernetes.io/version: 1.37.3
+        helm.sh/chart: vaultwarden-0.0.0-snapshot
+      name: vw-vaultwarden
+    spec:
+      ports:
+        - name: http
+          port: 8080
+          protocol: TCP
+          targetPort: http
+      selector:
+        app.kubernetes.io/component: server
+        app.kubernetes.io/instance: vw
+        app.kubernetes.io/name: vaultwarden
+      type: ClusterIP
+  12: |
+    apiVersion: v1
+    automountServiceAccountToken: false
+    kind: ServiceAccount
+    metadata:
+      labels:
+        app.kubernetes.io/instance: vw
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: vaultwarden
+        app.kubernetes.io/version: 1.37.3
+        helm.sh/chart: vaultwarden-0.0.0-snapshot
+      name: vw-vaultwarden
+  13: |
+    apiVersion: v1
+    kind: Pod
+    metadata:
+      annotations:
+        helm.sh/hook: test
+        helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+      labels:
+        app.kubernetes.io/component: test
+        app.kubernetes.io/instance: vw
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: vaultwarden
+        app.kubernetes.io/version: 1.37.3
+        helm.sh/chart: vaultwarden-0.0.0-snapshot
+        vaultwarden-client: vw-vaultwarden
+      name: vw-vaultwarden-test-alive
+    spec:
+      automountServiceAccountToken: false
+      containers:
+        - command:
+            - curl
+            - --fail
+            - --silent
+            - --show-error
+            - --max-time
+            - "10"
+            - --retry
+            - "5"
+            - --retry-connrefused
+            - http://vw-vaultwarden:8080/alive
+          image: docker.io/vaultwarden/server:1.37.3@sha256:1587c45feaa479f1f5e8af3b00eded36bff77bcf1880cf8dbf0541706dd470e0
+          imagePullPolicy: IfNotPresent
+          name: alive
+          resources:
+            limits:
+              memory: 32Mi
+            requests:
+              cpu: 10m
+              memory: 16Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+      enableServiceLinks: false
+      restartPolicy: Never
+      securityContext:
+        fsGroup: 1000
+        fsGroupChangePolicy: OnRootMismatch
+        runAsGroup: 1000
+        runAsNonRoot: true
+        runAsUser: 1000
+        seccompProfile:
+          type: RuntimeDefault

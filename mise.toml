@@ -31,7 +31,7 @@ run = "pre-commit run --all-files --show-diff-on-failure"
 
 [tasks."charts:deps"]
 description = "Resolve file:// dependencies of every chart and test fixture"
-run = 'for c in charts/*/ test/*/; do helm dependency build "$c" >/dev/null || exit 1; done'
+run = 'for c in charts/*/ test/*/; do helm dependency build --skip-refresh "$c" >/dev/null || exit 1; done'
 
 [tasks."charts:lint"]
 description = "helm lint --strict on every chart and test fixture"
@@ -41,4 +41,9 @@ run = 'for c in charts/*/ test/*/; do helm lint --strict "$c" || exit 1; done'
 [tasks."charts:test"]
 description = "helm-unittest on every chart and fixture that has tests"
 depends = ["charts:deps"]
-run = 'for c in charts/*/ test/*/; do if [ -d "$c/tests" ]; then untt --strict "$c" || exit 1; fi; done'
+run = 'for c in charts/*/ test/*/; do if [ -d "$c/tests" ]; then untt --strict -f "tests/*_test.yaml" -f "tests/snapshot/*_test.yaml" "$c" || exit 1; fi; done'
+
+[tasks."charts:mutation"]
+description = "Weaken each tested behaviour in turn; the targeted tests must fail"
+depends = ["charts:deps"]
+run = "scripts/mutation-test.sh test/mutations.yaml"
