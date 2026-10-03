@@ -1,0 +1,70 @@
+suite: values schema
+templates:
+  - templates/deployment.yaml
+release:
+  name: vw
+values:
+  - values/base.yaml
+tests:
+  - it: rejects an unknown key (a typo would otherwise be ignored)
+    set:
+      sso.enable: true
+    asserts:
+      - failedTemplate:
+          errorPattern: "additional properties 'enable' not allowed"
+
+  - it: rejects a plain http domain
+    set:
+      domain: http://vaultwarden.example.org
+    asserts:
+      - failedTemplate:
+          errorPattern: "'/domain'"
+
+  - it: rejects a trailing slash in the domain
+    set:
+      domain: https://vaultwarden.example.org/
+    asserts:
+      - failedTemplate:
+          errorPattern: "'/domain'"
+
+  - it: rejects the latest tag
+    set:
+      image.tag: latest
+    asserts:
+      - failedTemplate:
+          errorPattern: "'/image/tag'"
+
+  - it: rejects a malformed digest
+    set:
+      image.digest: sha256:abc
+    asserts:
+      - failedTemplate:
+          errorPattern: "'/image/digest'"
+
+  - it: rejects a zero retention
+    set:
+      backup.retention: 0
+    asserts:
+      - failedTemplate:
+          errorPattern: "'/backup/retention'"
+
+  - it: rejects an unknown log level
+    set:
+      logLevel: verbose
+    asserts:
+      - failedTemplate:
+          errorPattern: "'/logLevel'"
+
+  - it: rejects an ExternalSecret key that cannot be part of a name
+    set:
+      externalSecrets:
+        Bad_Key: {}
+    asserts:
+      - failedTemplate:
+          errorPattern: "'Bad_Key'"
+
+  - it: accepts the full example
+    values:
+      - values/full.yaml
+    asserts:
+      - notFailedTemplate: {}

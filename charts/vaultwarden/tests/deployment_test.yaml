@@ -1,0 +1,243 @@
+suite: deployment
+templates:
+  - templates/deployment.yaml
+release:
+  name: vw
+  namespace: vaultwarden
+values:
+  - values/base.yaml
+tests:
+  - it: runs one pod, recreated, never two on the same database
+    asserts:
+      - equal:
+          path: spec.replicas
+          value: 1
+      - equal:
+          path: spec.strategy
+          value:
+            type: Recreate
+
+  - it: pins the image by digest
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: docker.io/vaultwarden/server:1.37.3@sha256:1587c45feaa479f1f5e8af3b00eded36bff77bcf1880cf8dbf0541706dd470e0
+
+  - it: mounts no API token and injects no service links
+    asserts:
+      - equal:
+          path: spec.template.spec.automountServiceAccountToken
+          value: false
+      - equal:
+          path: spec.template.spec.enableServiceLinks
+          value: false
+      - equal:
+          path: spec.template.spec.serviceAccountName
+          value: vw-vaultwarden
+
+  - it: runs restricted, as uid 1000, with a read-only root filesystem
+    asserts:
+      - equal:
+          path: spec.template.spec.securityContext
+          value:
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            fsGroup: 1000
+            fsGroupChangePolicy: OnRootMismatch
+            seccompProfile:
+              type: RuntimeDefault
+      - equal:
+          path: spec.template.spec.containers[0].securityContext
+          value:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+
+  - it: probes /alive on the unprivileged port
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].ports[0].containerPort
+          value: 8080
+      - equal:
+          path: spec.template.spec.containers[0].startupProbe.httpGet
+          value:
+            path: /alive
+            port: http
+      - equal:
+          path: spec.template.spec.containers[0].livenessProbe.httpGet.path
+          value: /alive
+      - equal:
+          path: spec.template.spec.containers[0].readinessProbe.httpGet.path
+          value: /alive
+
+  - it: hardens the upstream defaults
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content: {name: SIGNUPS_ALLOWED, value: "false"}
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content: {name: PASSWORD_HINTS_ALLOWED, value: "false"}
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content: {name: INVITATIONS_ALLOWED, value: "false"}
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content: {name: ROCKET_PORT, value: "8080"}
+
+  - it: disables the admin panel unless a hash is provided
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: ADMIN_TOKEN
+          any: true
+
+  - it: reads the admin hash from a Secret
+    set:
+      admin.existingSecret: vaultwarden-admin
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: ADMIN_TOKEN
+            valueFrom:
+              secretKeyRef:
+                name: vaultwarden-admin
+                key: ADMIN_TOKEN
+
+  - it: leaves SSO out when disabled
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SSO_ENABLED
+          any: true
+
+  - it: keeps password login and sessions independent of the identity provider
+    values:
+      - values/full.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content: {name: SSO_ONLY, value: "false"}
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content: {name: SSO_AUTH_ONLY_NOT_SESSION, value: "true"}
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content: {name: SSO_SIGNUPS_ALLOWED, value: "false"}
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content: {name: SSO_ALLOW_UNKNOWN_EMAIL_VERIFICATION, value: "false"}
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SSO_CLIENT_SECRET
+            valueFrom:
+              secretKeyRef:
+                name: vaultwarden-oidc
+                key: client-secret
+
+  - it: wires the CA bundle when CA trust is enabled
+    values:
+      - values/full.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.initContainers[0].name
+          value: ca-trust
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SSL_CERT_FILE
+            value: /etc/ssl/homelab/ca-certificates.crt
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: ca-trust-bundle
+            mountPath: /etc/ssl/homelab
+            readOnly: true
+
+  - it: appends extraEnv
+    set:
+      extraEnv:
+        - name: WEB_VAULT_ENABLED
+          value: "false"
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content: {name: WEB_VAULT_ENABLED, value: "false"}
+
+  - it: refuses extraEnv redefining a managed variable
+    set:
+      extraEnv:
+        - name: SIGNUPS_ALLOWED
+          value: "true"
+    asserts:
+      - failedTemplate:
+          errorPattern: 'extraEnv may not redefine SIGNUPS_ALLOWED, which the chart manages'
+
+  - it: refuses extraEnv redefining the CA bundle path
+    values:
+      - values/full.yaml
+    set:
+      extraEnv:
+        - name: SSL_CERT_FILE
+          value: /etc/ssl/certs/ca-certificates.crt
+    asserts:
+      - failedTemplate:
+          errorPattern: 'extraEnv may not redefine SSL_CERT_FILE'
+
+  - it: mounts the chart's claim by default
+    asserts:
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: data
+            persistentVolumeClaim:
+              claimName: vw-vaultwarden-data
+
+  - it: mounts an existing claim
+    set:
+      persistence.existingClaim: vaultwarden-config-pvc
+    asserts:
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: data
+            persistentVolumeClaim:
+              claimName: vaultwarden-config-pvc
+
+  - it: requires the domain
+    set:
+      domain: ""
+    asserts:
+      - failedTemplate:
+          errorPattern: 'vaultwarden: domain is required'
+
+  - it: requires the SSO authority
+    set:
+      sso.enabled: true
+      sso.clientSecret.existingSecret: s
+    asserts:
+      - failedTemplate:
+          errorPattern: 'sso.authority is required when sso.enabled is true'
+
+  - it: requires the SSO client secret
+    set:
+      sso.enabled: true
+      sso.authority: https://sso.example.org/realms/home
+    asserts:
+      - failedTemplate:
+          errorPattern: 'sso.clientSecret.existingSecret is required when sso.enabled is true'
+
+  - it: refuses a discovery URL as authority
+    set:
+      sso.enabled: true
+      sso.authority: https://sso.example.org/realms/home/.well-known/openid-configuration
+      sso.clientSecret.existingSecret: s
+    asserts:
+      - failedTemplate:
+          errorPattern: 'sso.authority must not include /.well-known/openid-configuration'
