@@ -1,0 +1,286 @@
+# Mutations run by scripts/mutation-test.sh (`mise run charts:mutation`).
+# Each one weakens one tested behaviour; the chart's targeted unit tests must
+# fail. `find` must occur exactly once in `file`.
+
+# homelab-common, through its fixture chart
+- description: fullname matches a substring, like the scaffold
+  chart: test/common-consumer
+  file: charts/homelab-common/templates/_names.tpl
+  find: hasSuffix (printf "-%s" $name) .Release.Name
+  replace: contains $name .Release.Name
+- description: fullname is not checked against DNS-1035
+  chart: test/common-consumer
+  file: charts/homelab-common/templates/_names.tpl
+  find: '{{- if not (regexMatch "^[a-z]([-a-z0-9]*[a-z0-9])?$" $fullname) -}}'
+  replace: '{{- if false -}}'
+- description: truncated fullname keeps a trailing hyphen
+  chart: test/common-consumer
+  file: charts/homelab-common/templates/_names.tpl
+  find: '{{- $fullname = $fullname | trunc 63 | trimSuffix "-" -}}'
+  replace: '{{- $fullname = $fullname | trunc 63 -}}'
+- description: created service account is not used
+  chart: test/common-consumer
+  file: charts/homelab-common/templates/_names.tpl
+  find: '{{- default (include "homelab-common.fullname" .) $sa.name -}}'
+  replace: '{{- default "default" $sa.name -}}'
+- description: commonLabels may override standard labels
+  chart: test/common-consumer
+  file: charts/homelab-common/templates/_labels.tpl
+  find: '{{- if hasKey $labels $key -}}'
+  replace: '{{- if false -}}'
+- description: component is dropped from selectors
+  chart: test/common-consumer
+  file: charts/homelab-common/templates/_labels.tpl
+  find: '{{- $_ := set $labels "app.kubernetes.io/component" . -}}'
+  replace: ''
+- description: appVersion label is not sanitized
+  chart: test/common-consumer
+  file: charts/homelab-common/templates/_labels.tpl
+  find: '{{- $version := regexReplaceAll "[^-A-Za-z0-9_.]" (toString .) "_" | trunc 63 -}}'
+  replace: '{{- $version := toString . -}}'
+- description: digest format is not checked
+  chart: test/common-consumer
+  file: charts/homelab-common/templates/_image.tpl
+  find: '{{- if not (regexMatch "^sha256:[a-f0-9]{64}$" $digest) -}}'
+  replace: '{{- if false -}}'
+- description: latest tag is allowed
+  chart: test/common-consumer
+  file: charts/homelab-common/templates/_image.tpl
+  find: '{{- if eq $tag "latest" -}}'
+  replace: '{{- if false -}}'
+- description: digest inside the tag is allowed
+  chart: test/common-consumer
+  file: charts/homelab-common/templates/_image.tpl
+  find: '{{- if contains "@" $tag -}}'
+  replace: '{{- if false -}}'
+- description: digest inside the repository is allowed
+  chart: test/common-consumer
+  file: charts/homelab-common/templates/_image.tpl
+  find: '{{- if contains "@" $repository -}}'
+  replace: '{{- if false -}}'
+- description: container defaults merged with sprig merge (explicit false lost)
+  chart: test/common-consumer
+  file: charts/homelab-common/templates/_security.tpl
+  find: |-
+    {{- $sc := mergeOverwrite $defaults (deepCopy (.securityContext | default dict)) -}}
+    {{- include "homelab-common.validateRestricted" (dict "securityContext" $sc "path" $path "container" true) -}}
+  replace: |-
+    {{- $sc := merge (deepCopy (.securityContext | default dict)) $defaults -}}
+    {{- include "homelab-common.validateRestricted" (dict "securityContext" $sc "path" $path "container" true) -}}
+- description: pod runAsNonRoot is not enforced
+  chart: test/common-consumer
+  file: charts/homelab-common/templates/_security.tpl
+  find: '{{- else if ne (toString $sc.runAsNonRoot) "true" -}}'
+  replace: '{{- else if false -}}'
+- description: container runAsNonRoot false is allowed
+  chart: test/common-consumer
+  file: charts/homelab-common/templates/_security.tpl
+  find: '{{- if and (hasKey $sc "runAsNonRoot") (ne (toString $sc.runAsNonRoot) "true") -}}'
+  replace: '{{- if false -}}'
+- description: uid 0 is allowed
+  chart: test/common-consumer
+  file: charts/homelab-common/templates/_security.tpl
+  find: (eq (int $sc.runAsUser) 0)
+  replace: 'false'
+- description: any seccomp profile is allowed
+  chart: test/common-consumer
+  file: charts/homelab-common/templates/_security.tpl
+  find: '{{- if not (has .type (list "RuntimeDefault" "Localhost")) -}}'
+  replace: '{{- if false -}}'
+- description: privileged containers are allowed
+  chart: test/common-consumer
+  file: charts/homelab-common/templates/_security.tpl
+  find: '{{- if $sc.privileged -}}'
+  replace: '{{- if false -}}'
+- description: a null allowPrivilegeEscalation passes
+  chart: test/common-consumer
+  file: charts/homelab-common/templates/_security.tpl
+  find: '{{- if ne (toString $sc.allowPrivilegeEscalation) "false" -}}'
+  replace: '{{- if $sc.allowPrivilegeEscalation -}}'
+- description: drop ALL is not enforced
+  chart: test/common-consumer
+  file: charts/homelab-common/templates/_security.tpl
+  find: '{{- if not (has "ALL" ($caps.drop | default list)) -}}'
+  replace: '{{- if false -}}'
+- description: any capability may be added
+  chart: test/common-consumer
+  file: charts/homelab-common/templates/_security.tpl
+  find: '{{- if ne . "NET_BIND_SERVICE" -}}'
+  replace: '{{- if false -}}'
+- description: CA trust ConfigMap is not required
+  chart: test/common-consumer
+  file: charts/homelab-common/templates/_catrust.tpl
+  find: '{{ required "homelab-common: caTrust.configMap is required when caTrust.enabled is true" $ca.configMap }}'
+  replace: '{{ $ca.configMap }}'
+- description: CA trust env renders when disabled
+  chart: test/common-consumer
+  file: charts/homelab-common/templates/_catrust.tpl
+  find: |-
+    {{- define "homelab-common.caTrust.env" -}}
+    {{- $ca := .caTrust | default dict -}}
+    {{- if $ca.enabled -}}
+  replace: |-
+    {{- define "homelab-common.caTrust.env" -}}
+    {{- $ca := .caTrust | default dict -}}
+    {{- if true -}}
+- description: disabled ExternalSecrets are rendered
+  chart: test/common-consumer
+  file: charts/homelab-common/templates/_externalsecret.tpl
+  find: '{{- if ne (toString (dig "enabled" true ($spec | default dict))) "false" }}'
+  replace: '{{- if true }}'
+- description: any secret store kind is accepted
+  chart: test/common-consumer
+  file: charts/homelab-common/templates/_externalsecret.tpl
+  find: '{{- if not (has $storeKind (list "SecretStore" "ClusterSecretStore")) -}}'
+  replace: '{{- if false -}}'
+- description: an ExternalSecret without data is accepted
+  chart: test/common-consumer
+  file: charts/homelab-common/templates/_externalsecret.tpl
+  find: '{{- if not (or $spec.data $spec.dataFrom) -}}'
+  replace: '{{- if false -}}'
+- description: ExternalSecret key is not checked
+  chart: test/common-consumer
+  file: charts/homelab-common/templates/_externalsecret.tpl
+  find: '{{- if not (regexMatch "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$" $key) -}}'
+  replace: '{{- if false -}}'
+- description: ExternalSecret deletionPolicy has no default
+  chart: test/common-consumer
+  file: charts/homelab-common/templates/_externalsecret.tpl
+  find: '{{ $target.deletionPolicy | default "Retain" }}'
+  replace: '{{ $target.deletionPolicy }}'
+
+# vaultwarden
+- description: rolling update (two pods on one SQLite file)
+  chart: charts/vaultwarden
+  file: charts/vaultwarden/templates/deployment.yaml
+  find: 'type: Recreate'
+  replace: 'type: RollingUpdate'
+- description: two replicas
+  chart: charts/vaultwarden
+  file: charts/vaultwarden/templates/deployment.yaml
+  find: 'replicas: 1'
+  replace: 'replicas: 2'
+- description: service links injected (ROCKET_PORT clash)
+  chart: charts/vaultwarden
+  file: charts/vaultwarden/templates/deployment.yaml
+  find: 'enableServiceLinks: false'
+  replace: 'enableServiceLinks: true'
+- description: service account token mounted
+  chart: charts/vaultwarden
+  file: charts/vaultwarden/templates/deployment.yaml
+  find: 'automountServiceAccountToken: false'
+  replace: 'automountServiceAccountToken: true'
+- description: SSO-only by default (locked out when the provider is down)
+  chart: charts/vaultwarden
+  file: charts/vaultwarden/values.yaml
+  find: '  only: false'
+  replace: '  only: true'
+- description: sessions tied to the identity provider by default
+  chart: charts/vaultwarden
+  file: charts/vaultwarden/values.yaml
+  find: 'authOnlyNotSession: true'
+  replace: 'authOnlyNotSession: false'
+- description: SSO sign-ups allowed by default
+  chart: charts/vaultwarden
+  file: charts/vaultwarden/values.yaml
+  find: "  signupsAllowed: false\n  # -- Link"
+  replace: "  signupsAllowed: true\n  # -- Link"
+- description: unverified emails may be linked to accounts
+  chart: charts/vaultwarden
+  file: charts/vaultwarden/templates/_helpers.tpl
+  find: '"SSO_ALLOW_UNKNOWN_EMAIL_VERIFICATION" "value" "false"'
+  replace: '"SSO_ALLOW_UNKNOWN_EMAIL_VERIFICATION" "value" "true"'
+- description: password hints allowed by default
+  chart: charts/vaultwarden
+  file: charts/vaultwarden/values.yaml
+  find: 'passwordHintsAllowed: false'
+  replace: 'passwordHintsAllowed: true'
+- description: extraEnv may redefine managed variables
+  chart: charts/vaultwarden
+  file: charts/vaultwarden/templates/_helpers.tpl
+  find: '{{- if has .name $managed -}}'
+  replace: '{{- if false -}}'
+- description: CA bundle variable escapes the duplicate check
+  chart: charts/vaultwarden
+  file: charts/vaultwarden/templates/_helpers.tpl
+  find: |-
+    {{- with include "homelab-common.caTrust.env" (dict "caTrust" .Values.caTrust) -}}
+      {{- $env = concat $env (fromYamlArray .) -}}
+    {{- end -}}
+    {{- $managed := list -}}
+  replace: '{{- $managed := list -}}'
+- description: domain not required
+  chart: charts/vaultwarden
+  file: charts/vaultwarden/templates/_helpers.tpl
+  find: '{{- $_ := required "vaultwarden: domain is required (e.g. https://vaultwarden.example.org)" .Values.domain -}}'
+  replace: ''
+- description: discovery URL accepted as SSO authority
+  chart: charts/vaultwarden
+  file: charts/vaultwarden/templates/_helpers.tpl
+  find: '{{- if contains "/.well-known/" $authority -}}'
+  replace: '{{- if false -}}'
+- description: backup job may open connections
+  chart: charts/vaultwarden
+  file: charts/vaultwarden/templates/networkpolicy.yaml
+  find: |-
+    {{- if .Values.backup.enabled }}
+    ---
+  replace: |-
+    {{- if false }}
+    ---
+- description: test pod not admitted by the policy
+  chart: charts/vaultwarden
+  file: charts/vaultwarden/templates/networkpolicy.yaml
+  find: |2-
+            # helm test pod
+            - podSelector:
+                matchLabels:
+                  {{- include "vaultwarden.clientLabel" . | nindent 14 }}
+  replace: ''
+- description: DNS over UDP blocked
+  chart: charts/vaultwarden
+  file: charts/vaultwarden/templates/networkpolicy.yaml
+  find: |2-
+            - port: 53
+              protocol: UDP
+  replace: ''
+- description: data claim deleted with the release
+  chart: charts/vaultwarden
+  file: charts/vaultwarden/templates/pvc.yaml
+  find: '    helm.sh/resource-policy: keep'
+  replace: ''
+- description: backup claim follows the data retain flag
+  chart: charts/vaultwarden
+  file: charts/vaultwarden/templates/pvc.yaml
+  find: '"retain" true "storageClass" .Values.backup'
+  replace: '"retain" .Values.persistence.retain "storageClass" .Values.backup'
+- description: concurrent backups allowed
+  chart: charts/vaultwarden
+  file: charts/vaultwarden/templates/backup.yaml
+  find: 'concurrencyPolicy: Forbid'
+  replace: 'concurrencyPolicy: Allow'
+- description: ingress host not required
+  chart: charts/vaultwarden
+  file: charts/vaultwarden/templates/ingress.yaml
+  find: '{{- $_ := required "vaultwarden: ingress.host is required when ingress.enabled is true" .Values.ingress.host }}'
+  replace: ''
+- description: unknown keys accepted under sso
+  chart: charts/vaultwarden
+  file: charts/vaultwarden/values.schema.json
+  find: |-
+    "sso": {
+          "type": "object",
+          "additionalProperties": false,
+  replace: |-
+    "sso": {
+          "type": "object",
+- description: latest tag accepted by the schema
+  chart: charts/vaultwarden
+  file: charts/vaultwarden/values.schema.json
+  find: '"tag": { "type": "string", "not": { "const": "latest" } },'
+  replace: '"tag": { "type": "string" },'
+- description: http domain accepted by the schema
+  chart: charts/vaultwarden
+  file: charts/vaultwarden/values.schema.json
+  find: '"pattern": "^https://[^/\\s]+(/\\S*[^/\\s])?$"'
+  replace: '"pattern": "^https?://[^/\\s]+(/\\S*[^/\\s])?$"'
