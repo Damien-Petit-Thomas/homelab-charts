@@ -1,0 +1,10 @@
+apiVersion: v2
+name: common-consumer
+description: Test fixture exercising every homelab-common helper. Never released.
+type: application
+version: 0.0.0
+appVersion: "1.2.3+build.4"
+dependencies:
+  - name: homelab-common
+    version: 0.1.0
+    repository: file://../../charts/homelab-common

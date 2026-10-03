@@ -1,0 +1,139 @@
+suite: security contexts
+templates:
+  - templates/deployment.yaml
+release:
+  name: rel
+tests:
+  - it: applies the restricted pod defaults and keeps the caller's keys
+    asserts:
+      - equal:
+          path: spec.template.spec.securityContext
+          value:
+            fsGroup: 1000
+            runAsGroup: 1000
+            runAsNonRoot: true
+            runAsUser: 1000
+            seccompProfile:
+              type: RuntimeDefault
+
+  - it: applies the restricted container defaults
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].securityContext
+          value:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+            readOnlyRootFilesystem: true
+
+  - it: honours an explicit false (sprig `merge` would restore the default)
+    set:
+      securityContext.readOnlyRootFilesystem: false
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.readOnlyRootFilesystem
+          value: false
+
+  - it: accepts a Localhost seccomp profile
+    set:
+      podSecurityContext.seccompProfile:
+        type: Localhost
+        localhostProfile: profiles/app.json
+    asserts:
+      - equal:
+          path: spec.template.spec.securityContext.seccompProfile.type
+          value: Localhost
+
+  - it: deep-merges capabilities, keeping the default drop list
+    set:
+      securityContext.capabilities:
+        add: [NET_BIND_SERVICE]
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.capabilities
+          value:
+            drop: [ALL]
+            add: [NET_BIND_SERVICE]
+
+  - it: accepts NET_BIND_SERVICE
+    set:
+      securityContext.capabilities:
+        drop: [ALL]
+        add: [NET_BIND_SERVICE]
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].securityContext.capabilities.add
+          content: NET_BIND_SERVICE
+
+  - it: rejects runAsNonRoot false on the pod
+    set:
+      podSecurityContext.runAsNonRoot: false
+    asserts:
+      - failedTemplate:
+          errorPattern: 'podSecurityContext.runAsNonRoot must be true'
+
+  - it: rejects runAsNonRoot null on the pod
+    set:
+      podSecurityContext.runAsNonRoot: null
+    asserts:
+      - failedTemplate:
+          errorPattern: 'podSecurityContext.runAsNonRoot must be true'
+
+  - it: rejects runAsNonRoot false on the container
+    set:
+      securityContext.runAsNonRoot: false
+    asserts:
+      - failedTemplate:
+          errorPattern: 'securityContext.runAsNonRoot must not be false'
+
+  - it: rejects uid 0
+    set:
+      podSecurityContext.runAsUser: 0
+    asserts:
+      - failedTemplate:
+          errorPattern: 'podSecurityContext.runAsUser must not be 0'
+
+  - it: rejects an unconfined seccomp profile
+    set:
+      podSecurityContext.seccompProfile.type: Unconfined
+    asserts:
+      - failedTemplate:
+          errorPattern: 'podSecurityContext.seccompProfile.type must be RuntimeDefault or Localhost, got "Unconfined"'
+
+  - it: rejects privilege escalation
+    set:
+      securityContext.allowPrivilegeEscalation: true
+    asserts:
+      - failedTemplate:
+          errorPattern: 'securityContext.allowPrivilegeEscalation must be false'
+
+  - it: rejects a null allowPrivilegeEscalation (restricted needs an explicit false)
+    set:
+      securityContext.allowPrivilegeEscalation: null
+    asserts:
+      - failedTemplate:
+          errorPattern: 'securityContext.allowPrivilegeEscalation must be false'
+
+  - it: rejects a privileged container
+    set:
+      securityContext.privileged: true
+    asserts:
+      - failedTemplate:
+          errorPattern: 'securityContext.privileged must not be true'
+
+  - it: rejects a drop list without ALL
+    set:
+      securityContext.capabilities:
+        drop: [NET_RAW]
+    asserts:
+      - failedTemplate:
+          errorPattern: 'securityContext.capabilities.drop must contain ALL'
+
+  - it: rejects an added capability other than NET_BIND_SERVICE
+    set:
+      securityContext.capabilities:
+        drop: [ALL]
+        add: [SYS_ADMIN]
+    asserts:
+      - failedTemplate:
+          errorPattern: 'securityContext.capabilities.add may only contain NET_BIND_SERVICE, got "SYS_ADMIN"'

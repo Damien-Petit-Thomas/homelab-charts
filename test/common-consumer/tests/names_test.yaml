@@ -1,0 +1,90 @@
+suite: names
+templates:
+  - templates/deployment.yaml
+release:
+  name: rel
+tests:
+  - it: prefixes the chart name with the release name
+    asserts:
+      - equal:
+          path: metadata.name
+          value: rel-common-consumer
+
+  - it: uses the release name alone when it equals the chart name
+    release:
+      name: common-consumer
+    asserts:
+      - equal:
+          path: metadata.name
+          value: common-consumer
+
+  - it: uses the release name alone when it already ends with -<name>
+    release:
+      name: prod-common-consumer
+    asserts:
+      - equal:
+          path: metadata.name
+          value: prod-common-consumer
+
+  - it: does not treat a substring as a match (scaffold `contains` bug)
+    set:
+      nameOverride: app
+    release:
+      name: happy
+    asserts:
+      - equal:
+          path: metadata.name
+          value: happy-app
+
+  - it: honours fullnameOverride
+    set:
+      fullnameOverride: custom
+    asserts:
+      - equal:
+          path: metadata.name
+          value: custom
+
+  - it: truncates to 63 characters without a trailing hyphen
+    set:
+      # 62 characters followed by "-x": truncation leaves a trailing "-"
+      fullnameOverride: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-x
+    asserts:
+      - equal:
+          path: metadata.name
+          value: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+
+  - it: rejects a name that is not a DNS-1035 label
+    set:
+      fullnameOverride: Bad_Name
+    asserts:
+      - failedTemplate:
+          errorPattern: 'resource name "Bad_Name" is not a valid DNS-1035 label'
+
+  - it: rejects a release name starting with a digit
+    release:
+      name: 1rel
+    asserts:
+      - failedTemplate:
+          errorPattern: 'resource name "1rel-common-consumer" is not a valid DNS-1035 label'
+
+  - it: uses the default service account when none is created
+    asserts:
+      - equal:
+          path: spec.template.spec.serviceAccountName
+          value: default
+
+  - it: names a created service account after the release
+    set:
+      serviceAccount.create: true
+    asserts:
+      - equal:
+          path: spec.template.spec.serviceAccountName
+          value: rel-common-consumer
+
+  - it: honours an explicit service account name
+    set:
+      serviceAccount.name: existing
+    asserts:
+      - equal:
+          path: spec.template.spec.serviceAccountName
+          value: existing

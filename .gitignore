@@ -4,3 +4,8 @@ charts/*/charts/
 
 # helm-unittest output
 **/__snapshot__/*.yaml.tmp
+
+# Test fixtures resolve the library from file://: lock and vendored copy are
+# rebuilt on every run.
+test/*/charts/
+test/*/Chart.lock

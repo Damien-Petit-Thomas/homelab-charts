@@ -49,6 +49,46 @@ url = "https://github.com/rhysd/actionlint/releases/download/v1.7.12/actionlint_
 url_api = "https://api.github.com/repos/rhysd/actionlint/releases/assets/384924919"
 provenance = "github-attestations"
 
+[[tools."github:helm-unittest/helm-unittest"]]
+version = "1.1.2"
+backend = "github:helm-unittest/helm-unittest"
+specifiers = ["1.1.2"]
+
+[tools."github:helm-unittest/helm-unittest"."platforms.linux-arm64"]
+checksum = "sha256:5f8d24d163b65a9244c4371078bfecaa236f7f6807fd8e923700783db78c1626"
+url = "https://github.com/helm-unittest/helm-unittest/releases/download/v1.1.2/helm-unittest-linux-arm64-1.1.2.tgz"
+url_api = "https://api.github.com/repos/helm-unittest/helm-unittest/releases/assets/488474943"
+
+[tools."github:helm-unittest/helm-unittest"."platforms.linux-arm64-musl"]
+checksum = "sha256:5f8d24d163b65a9244c4371078bfecaa236f7f6807fd8e923700783db78c1626"
+url = "https://github.com/helm-unittest/helm-unittest/releases/download/v1.1.2/helm-unittest-linux-arm64-1.1.2.tgz"
+url_api = "https://api.github.com/repos/helm-unittest/helm-unittest/releases/assets/488474943"
+
+[tools."github:helm-unittest/helm-unittest"."platforms.linux-x64"]
+checksum = "sha256:de03d6b7ba7683282064702d0b36fbbe812ab2a22691fa3a8b2ce57c2682609c"
+url = "https://github.com/helm-unittest/helm-unittest/releases/download/v1.1.2/helm-unittest-linux-amd64-1.1.2.tgz"
+url_api = "https://api.github.com/repos/helm-unittest/helm-unittest/releases/assets/488474950"
+
+[tools."github:helm-unittest/helm-unittest"."platforms.linux-x64-musl"]
+checksum = "sha256:de03d6b7ba7683282064702d0b36fbbe812ab2a22691fa3a8b2ce57c2682609c"
+url = "https://github.com/helm-unittest/helm-unittest/releases/download/v1.1.2/helm-unittest-linux-amd64-1.1.2.tgz"
+url_api = "https://api.github.com/repos/helm-unittest/helm-unittest/releases/assets/488474950"
+
+[tools."github:helm-unittest/helm-unittest"."platforms.macos-arm64"]
+checksum = "sha256:d78208521e6407287870345aa38f7e37eb588c74fb110cf27d1758852089e7fb"
+url = "https://github.com/helm-unittest/helm-unittest/releases/download/v1.1.2/helm-unittest-macos-arm64-1.1.2.tgz"
+url_api = "https://api.github.com/repos/helm-unittest/helm-unittest/releases/assets/488474949"
+
+[tools."github:helm-unittest/helm-unittest"."platforms.macos-x64"]
+checksum = "sha256:40757889f5a5a84334ae6b433724fdd50d73390e522bc233a525c076eb3e90aa"
+url = "https://github.com/helm-unittest/helm-unittest/releases/download/v1.1.2/helm-unittest-macos-amd64-1.1.2.tgz"
+url_api = "https://api.github.com/repos/helm-unittest/helm-unittest/releases/assets/488474944"
+
+[tools."github:helm-unittest/helm-unittest"."platforms.windows-x64"]
+checksum = "sha256:c41cb6d399d80183e1d77a70239236c345b83bd1c785a11ab5e84e5d76e3d79d"
+url = "https://github.com/helm-unittest/helm-unittest/releases/download/v1.1.2/helm-unittest-windows-amd64-1.1.2.tgz"
+url_api = "https://api.github.com/repos/helm-unittest/helm-unittest/releases/assets/488474938"
+
 [[tools.helm]]
 version = "4.2.1"
 backend = "aqua:helm/helm"

@@ -43,6 +43,42 @@ jobs:
           SKIP: no-commit-to-branch
         run: mise run lint
 
+  # helm lint --strict and helm-unittest on every chart and test fixture, with
+  # the Helm pinned in mise.toml.
+  charts:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install the pinned toolchain
+        uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
+        with:
+          version: 2026.9.14
+          sha256: 2b289d1b3074e0b1d3f95bad0bd78bbc517c1a5bcb020cbc1643d260f5d1a351
+
+      - name: Lint charts
+        run: mise run charts:lint
+
+      - name: Unit tests
+        run: mise run charts:test
+
+  # The shared chart validation (kubeconform, kube-linter, OPA policies,
+  # server-side dry-run on k3d) on the fixture that consumes homelab-common.
+  validate-common-consumer:
+    permissions:
+      contents: read
+    uses: Damien-Petit-Thomas/homelab-ci-templates/.github/workflows/validate-helm.yml@v2
+    with:
+      chart-path: test/common-consumer
+      helm-version: v4.2.1
+      kubeconform-kubernetes-version: 1.36.0
+
   # Single required status check for the ruleset: a stable name, independent
   # of job names and matrices. Every other job must be in its needs (checked
   # by the ci-gate hook).
@@ -51,6 +87,8 @@ jobs:
     if: always()
     needs:
       - lint
+      - charts
+      - validate-common-consumer
     runs-on: ubuntu-24.04
     timeout-minutes: 2
     permissions: {}

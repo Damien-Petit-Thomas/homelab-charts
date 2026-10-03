@@ -20,7 +20,25 @@ pre-commit = "4.6.2"
 # mikefarah yq, pinned so scripts behave the same on laptops (where the
 # Python yq may shadow it) and on runners.
 yq = "4.53.6"
+# Standalone binary of the helm-unittest plugin (`untt`). 1.1.2 renders with
+# the Helm 3 engine; 1.2.x (Helm 4 engine) is held back by the 7-day cooldown.
+# Helm 4 itself still runs lint, template and install tests.
+"github:helm-unittest/helm-unittest" = { version = "1.1.2", bin = "untt" }
 
 [tasks.lint]
 description = "Run every pre-commit hook on the whole tree"
 run = "pre-commit run --all-files --show-diff-on-failure"
+
+[tasks."charts:deps"]
+description = "Resolve file:// dependencies of every chart and test fixture"
+run = 'for c in charts/*/ test/*/; do helm dependency build "$c" >/dev/null || exit 1; done'
+
+[tasks."charts:lint"]
+description = "helm lint --strict on every chart and test fixture"
+depends = ["charts:deps"]
+run = 'for c in charts/*/ test/*/; do helm lint --strict "$c" || exit 1; done'
+
+[tasks."charts:test"]
+description = "helm-unittest on every chart and fixture that has tests"
+depends = ["charts:deps"]
+run = 'for c in charts/*/ test/*/; do if [ -d "$c/tests" ]; then untt --strict "$c" || exit 1; fi; done'

@@ -1,0 +1,90 @@
+suite: CA trust
+templates:
+  - templates/deployment.yaml
+release:
+  name: rel
+tests:
+  - it: renders nothing when disabled
+    asserts:
+      - notExists:
+          path: spec.template.spec.initContainers
+      - notExists:
+          path: spec.template.spec.volumes
+      - notExists:
+          path: spec.template.spec.containers[0].env
+      - notExists:
+          path: spec.template.spec.containers[0].volumeMounts
+
+  - it: adds the ca-updater init container, pinned and restricted
+    set:
+      caTrust.enabled: true
+    asserts:
+      - equal:
+          path: spec.template.spec.initContainers[0].image
+          value: ghcr.io/damien-petit-thomas/ca-updater:1.0.1@sha256:1e583a3a7142d3d0f1e209767578ceef87bc687241df50898bca24200f2823d6
+      - equal:
+          path: spec.template.spec.initContainers[0].securityContext
+          value:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+      - contains:
+          path: spec.template.spec.initContainers[0].env
+          content:
+            name: CA_SOURCE
+            value: /custom-ca/ca.crt
+
+  - it: wires the bundle into the app container
+    set:
+      caTrust.enabled: true
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SSL_CERT_FILE
+            value: /etc/ssl/homelab/ca-certificates.crt
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: ca-trust-bundle
+            mountPath: /etc/ssl/homelab
+            readOnly: true
+
+  - it: mounts only the configured key of the ConfigMap
+    set:
+      caTrust.enabled: true
+      caTrust.configMap: step-ca-root
+      caTrust.key: root.pem
+    asserts:
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: ca-trust-source
+            configMap:
+              name: step-ca-root
+              items:
+                - key: root.pem
+                  path: root.pem
+      - contains:
+          path: spec.template.spec.initContainers[0].env
+          content:
+            name: CA_SOURCE
+            value: /custom-ca/root.pem
+
+  - it: requires the ConfigMap name
+    set:
+      caTrust.enabled: true
+      caTrust.configMap: null
+    asserts:
+      - failedTemplate:
+          errorPattern: 'caTrust.configMap is required when caTrust.enabled is true'
+
+  - it: requires the ca-updater digest
+    set:
+      caTrust.enabled: true
+      caTrust.image.digest: null
+    asserts:
+      - failedTemplate:
+          errorPattern: 'caTrust.image.digest is required'
