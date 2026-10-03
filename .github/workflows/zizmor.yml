@@ -1,0 +1,17 @@
+# Static analysis of this repository's workflows, through the shared
+# reusable workflow (SARIF upload to Code Scanning, online audits).
+name: zizmor
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions: {}
+
+jobs:
+  zizmor:
+    permissions:
+      contents: read
+      security-events: write
+    uses: Damien-Petit-Thomas/homelab-ci-templates/.github/workflows/zizmor.yml@v2
