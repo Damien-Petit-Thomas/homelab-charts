@@ -1,0 +1,6 @@
+# Packaged charts and vendored dependencies
+*.tgz
+charts/*/charts/
+
+# helm-unittest output
+**/__snapshot__/*.yaml.tmp
