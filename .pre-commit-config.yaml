@@ -1,0 +1,68 @@
+# Local hooks, also run in CI (`mise run lint`), so a skipped local hook
+# cannot reach main. Third-party hook repositories are pinned to commit SHAs
+# (`pre-commit autoupdate --freeze`). Local hooks call the tools pinned in
+# mise.toml: run them from a mise-activated shell.
+#
+# Install: pre-commit install
+
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: 3e8a8703264a2f4a69428a0aa4dcb512790b2c8c  # frozen: v6.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: mixed-line-ending
+        args: [--fix=lf]
+      - id: check-yaml
+        # Helm templates are Go templates, not YAML.
+        exclude: ^charts/[^/]+/templates/
+      - id: check-json
+      - id: check-toml
+      - id: check-merge-conflict
+      - id: check-added-large-files
+      - id: detect-private-key
+      - id: no-commit-to-branch
+        args: [--branch, main]
+
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: 83d9cd684c87d95d656c1458ef04895a7f1cbd8e  # frozen: v8.30.1
+    hooks:
+      - id: gitleaks
+
+  - repo: local
+    hooks:
+      - id: actionlint
+        name: actionlint
+        entry: actionlint
+        language: system
+        files: ^\.github/workflows/.*\.ya?ml$
+
+      - id: zizmor
+        name: zizmor (offline audits; CI also runs the online ones)
+        entry: zizmor --offline
+        language: system
+        files: ^\.github/(workflows/.*\.ya?ml|zizmor\.yml)$
+        pass_filenames: false
+        args: [.github/workflows]
+
+      - id: shellcheck
+        name: shellcheck
+        entry: shellcheck
+        language: system
+        types: [shell]
+
+      # Third-party actions: full commit SHA. Exception: our own reusable
+      # workflows, referenced by their moving major tag (ref-pin policy in
+      # .github/zizmor.yml, homelab-ci-templates ADR 0005).
+      - id: full-sha-pins
+        name: actions are pinned to full 40-char commit SHAs
+        language: pygrep
+        entry: 'uses:\s*(?!Damien-Petit-Thomas/homelab-ci-templates/[^@\s]+@v\d+(\s|$))[^@\s.][^@\s]*@(?![0-9a-f]{40}(\s|$))'
+        files: ^\.github/workflows/.*\.ya?ml$
+
+      - id: ci-gate
+        name: every CI job is gated by ci-ok
+        entry: scripts/check-ci-gate.sh
+        language: system
+        files: ^\.github/workflows/ci\.yml$
+        pass_filenames: false
