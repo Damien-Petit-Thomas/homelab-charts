@@ -1,0 +1,65 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions: {}
+
+defaults:
+  run:
+    shell: bash --noprofile --norc -euo pipefail {0}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  # The same hooks as on laptops, with the same tool versions (mise.lock):
+  # a hook skipped locally still blocks the merge.
+  lint:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install the pinned toolchain
+        uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
+        with:
+          version: 2026.9.14
+          # mise-v2026.9.14-linux-x64, checked against the release SHASUMS256
+          # and its GitHub build attestation.
+          sha256: 2b289d1b3074e0b1d3f95bad0bd78bbc517c1a5bcb020cbc1643d260f5d1a351
+
+      - name: Run every pre-commit hook
+        env:
+          # Pushes to main are merge results, not local commits.
+          SKIP: no-commit-to-branch
+        run: mise run lint
+
+  # Single required status check for the ruleset: a stable name, independent
+  # of job names and matrices. Every other job must be in its needs (checked
+  # by the ci-gate hook).
+  ci-ok:
+    name: ci-ok
+    if: always()
+    needs:
+      - lint
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    permissions: {}
+    steps:
+      - name: All required jobs succeeded
+        env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+        run: |
+          for r in $RESULTS; do
+            [[ "$r" == "success" ]] || { echo "::error::a required job ended with: $r"; exit 1; }
+          done
+          echo "all required jobs succeeded"

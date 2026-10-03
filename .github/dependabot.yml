@@ -1,0 +1,32 @@
+version: 2
+
+# Tools pinned in mise.toml are not covered by Dependabot: Renovate will
+# handle them, together with the chart image digests (see roadmap).
+updates:
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "chore(ci)"
+    cooldown:
+      default-days: 7
+    groups:
+      actions-minor-and-patch:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+
+  - package-ecosystem: "pre-commit"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "chore(deps)"
+    cooldown:
+      default-days: 7
+    groups:
+      pre-commit-minor-and-patch:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]

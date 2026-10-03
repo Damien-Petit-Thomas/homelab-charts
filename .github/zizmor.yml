@@ -1,0 +1,8 @@
+rules:
+  unpinned-uses:
+    config:
+      policies:
+        # Our own reusable workflows follow a moving major tag, protected by
+        # an immutable-tag ruleset (homelab-ci-templates ADR 0005).
+        "Damien-Petit-Thomas/homelab-ci-templates/*": ref-pin
+        "*": hash-pin
