@@ -7,7 +7,7 @@ chart, OCI-published and signed.
 
 | Chart | Type | Purpose | Status |
 |---|---|---|---|
-| `homelab-common` | library | Shared templates: names and labels, image references pinned by digest, restricted security contexts, ExternalSecrets, homelab CA trust | planned |
+| [`homelab-common`](charts/homelab-common) | library | Shared templates: names and labels, image references pinned by digest, restricted security contexts, ExternalSecrets, homelab CA trust | unreleased |
 | `vaultwarden` | application | Reference chart: Pod Security `restricted`, read-only root filesystem, SQLite with tested backup and restore | planned |
 
 ## Principles
