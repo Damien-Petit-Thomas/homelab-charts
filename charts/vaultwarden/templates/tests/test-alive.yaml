@@ -1,0 +1,40 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: {{ include "homelab-common.fullname" . }}-test-alive
+  labels:
+    {{- include "homelab-common.labels" (dict "context" $ "component" "test") | nindent 4 }}
+    {{- include "vaultwarden.clientLabel" . | nindent 4 }}
+  annotations:
+    helm.sh/hook: test
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+spec:
+  restartPolicy: Never
+  automountServiceAccountToken: false
+  enableServiceLinks: false
+  securityContext:
+    {{- include "homelab-common.podSecurityContext" (dict "securityContext" .Values.podSecurityContext) | nindent 4 }}
+  containers:
+    - name: alive
+      # Reuses the Vaultwarden image, which ships curl: no extra image to pin.
+      image: {{ include "homelab-common.image" (dict "image" .Values.image "path" "image") }}
+      imagePullPolicy: {{ .Values.image.pullPolicy }}
+      command:
+        - curl
+        - --fail
+        - --silent
+        - --show-error
+        - --max-time
+        - "10"
+        - --retry
+        - "5"
+        - --retry-connrefused
+        - http://{{ include "homelab-common.fullname" . }}:{{ .Values.service.port }}/alive
+      securityContext:
+        {{- include "homelab-common.containerSecurityContext" (dict "securityContext" .Values.securityContext "path" "securityContext") | nindent 8 }}
+      resources:
+        requests:
+          cpu: 10m
+          memory: 16Mi
+        limits:
+          memory: 32Mi

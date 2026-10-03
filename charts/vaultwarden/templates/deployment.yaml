@@ -1,0 +1,96 @@
+{{- include "vaultwarden.validate" . -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "homelab-common.fullname" . }}
+  labels:
+    {{- include "homelab-common.labels" (dict "context" $ "component" "server") | nindent 4 }}
+spec:
+  # SQLite on a ReadWriteOnce volume: one pod, and never two at once
+  # (ADR 0001).
+  replicas: 1
+  strategy:
+    type: Recreate
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels:
+      {{- include "homelab-common.selectorLabels" (dict "context" $ "component" "server") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "homelab-common.labels" (dict "context" $ "component" "server") | nindent 8 }}
+    spec:
+      serviceAccountName: {{ include "homelab-common.serviceAccountName" . }}
+      automountServiceAccountToken: false
+      # Rocket reads ROCKET_* variables; service links would inject
+      # <SERVICE>_PORT=tcp://... for every Service of the namespace.
+      enableServiceLinks: false
+      securityContext:
+        {{- include "homelab-common.podSecurityContext" (dict "securityContext" .Values.podSecurityContext) | nindent 8 }}
+      {{- with include "homelab-common.caTrust.initContainer" (dict "caTrust" .Values.caTrust) }}
+      initContainers:
+        {{- . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: vaultwarden
+          image: {{ include "homelab-common.image" (dict "image" .Values.image "path" "image") }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          env:
+            {{- include "vaultwarden.env" . | nindent 12 }}
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+          startupProbe:
+            httpGet:
+              path: /alive
+              port: http
+            periodSeconds: 5
+            failureThreshold: {{ .Values.probes.startup.failureThreshold }}
+          livenessProbe:
+            httpGet:
+              path: /alive
+              port: http
+            periodSeconds: {{ .Values.probes.liveness.periodSeconds }}
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /alive
+              port: http
+            periodSeconds: {{ .Values.probes.readiness.periodSeconds }}
+          securityContext:
+            {{- include "homelab-common.containerSecurityContext" (dict "securityContext" .Values.securityContext "path" "securityContext") | nindent 12 }}
+          {{- with .Values.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          volumeMounts:
+            - name: data
+              mountPath: /data
+            - name: tmp
+              mountPath: /tmp
+            {{- with include "homelab-common.caTrust.volumeMounts" (dict "caTrust" .Values.caTrust) }}
+            {{- . | nindent 12 }}
+            {{- end }}
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: {{ include "vaultwarden.dataClaim" . }}
+        - name: tmp
+          emptyDir:
+            sizeLimit: 256Mi
+        {{- with include "homelab-common.caTrust.volumes" (dict "caTrust" .Values.caTrust) }}
+        {{- . | nindent 8 }}
+        {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

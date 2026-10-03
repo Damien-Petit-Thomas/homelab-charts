@@ -1,0 +1,215 @@
+# -- Overrides the chart name in resource names.
+nameOverride: ""
+# -- Overrides the full resource name.
+fullnameOverride: ""
+# -- Labels added to every resource (never to selectors).
+commonLabels: {}
+
+image:
+  # -- Vaultwarden image repository.
+  repository: docker.io/vaultwarden/server
+  # -- Image tag, for humans: the digest decides what runs.
+  tag: "1.37.3"
+  # -- Image digest (required).
+  digest: sha256:1587c45feaa479f1f5e8af3b00eded36bff77bcf1880cf8dbf0541706dd470e0
+  # -- Image pull policy.
+  pullPolicy: IfNotPresent
+
+# -- Public URL of the instance, scheme included (required). Used in emails,
+# WebAuthn and as the SSO redirect base.
+domain: ""
+
+# -- Allow anyone to create an account. Off: accounts come from invitations,
+# or from SSO when `sso.signupsAllowed` is on.
+signupsAllowed: false
+# -- Allow organization invitations (useless without SMTP).
+invitationsAllowed: false
+# -- Allow password hints (they leak information about the password).
+passwordHintsAllowed: false
+# -- Header holding the client IP behind the ingress controller.
+ipHeader: X-Real-IP
+# -- Log level: trace, debug, info, warn, error or off.
+logLevel: info
+
+admin:
+  # -- Secret holding an argon2 PHC hash (`vaultwarden hash`) for the /admin
+  # panel. Empty: the panel is disabled. Never put a plain token there.
+  existingSecret: ""
+  # -- Key of the hash in `admin.existingSecret`.
+  key: ADMIN_TOKEN
+
+sso:
+  # -- Enable OpenID Connect login.
+  enabled: false
+  # -- Issuer URL, without `/.well-known/openid-configuration` and without a
+  # trailing slash.
+  authority: ""
+  # -- OIDC client ID.
+  clientId: vaultwarden
+  clientSecret:
+    # -- Secret holding the client secret, for instance one rendered by
+    # `externalSecrets`.
+    existingSecret: ""
+    # -- Key of the client secret in `sso.clientSecret.existingSecret`.
+    key: client-secret
+  # -- Refuse password logins. Off: email + master password still work when
+  # the identity provider is down.
+  only: false
+  # -- Use the identity provider for login only: Vaultwarden issues its own
+  # session tokens, so open sessions survive an identity provider outage.
+  authOnlyNotSession: true
+  # -- Let an SSO login create an account.
+  signupsAllowed: false
+  # -- Link an SSO login to the existing account with the same verified email.
+  signupsMatchEmail: true
+  # -- Scopes requested besides `openid`.
+  scopes: email profile
+  # -- Use PKCE in the authorization code flow.
+  pkce: true
+
+# -- Extra environment variables for the Vaultwarden container. A variable
+# managed by the chart cannot be redefined here.
+extraEnv: []
+
+# Homelab CA trust (ca-updater init container), for an identity provider
+# whose certificate is signed by a private CA.
+caTrust:
+  # -- Add the CA bundle to the Vaultwarden container (`SSL_CERT_FILE`).
+  enabled: false
+  # -- ConfigMap holding the CA certificate.
+  configMap: ""
+  # -- Key of the certificate in the ConfigMap.
+  key: ca.crt
+  image:
+    # -- ca-updater image repository.
+    repository: ghcr.io/damien-petit-thomas/ca-updater
+    # -- ca-updater image tag.
+    tag: "1.0.1"
+    # -- ca-updater image digest (required when enabled).
+    digest: sha256:1e583a3a7142d3d0f1e209767578ceef87bc687241df50898bca24200f2823d6
+  # -- ca-updater resources.
+  resources:
+    requests:
+      cpu: 10m
+      memory: 16Mi
+    limits:
+      memory: 32Mi
+
+# -- ExternalSecrets rendered by homelab-common (see its README), e.g. the
+# SSO client secret.
+externalSecrets: {}
+
+persistence:
+  # -- Existing claim for /data. Empty: the chart creates one.
+  existingClaim: ""
+  # -- Storage class of the created claim (empty: cluster default).
+  storageClass: ""
+  # -- Size of the created claim.
+  size: 1Gi
+  # -- Keep the created claim when the release is deleted
+  # (`helm.sh/resource-policy: keep`, ArgoCD `Prune=false,Delete=false`).
+  retain: true
+
+serviceAccount:
+  # -- Create a dedicated service account (its token is never mounted).
+  create: true
+  # -- Service account name (default: the full name).
+  name: ""
+
+service:
+  # -- Service port.
+  port: 8080
+
+ingress:
+  # -- Create an Ingress.
+  enabled: false
+  # -- Ingress class.
+  className: ""
+  # -- Ingress annotations, e.g. the cert-manager issuer.
+  annotations: {}
+  # -- Host name (required when enabled).
+  host: ""
+  tls:
+    # -- TLS Secret name (empty: no TLS section).
+    secretName: ""
+
+networkPolicy:
+  # -- Restrict traffic: ingress from the ingress controller only, egress to
+  # DNS plus `networkPolicy.extraEgress`.
+  enabled: true
+  ingressController:
+    # -- Namespace of the ingress controller pods.
+    namespace: kube-system
+    # -- Labels of the ingress controller pods.
+    podLabels:
+      app.kubernetes.io/name: traefik
+  dns:
+    # -- Namespace of the cluster DNS pods.
+    namespace: kube-system
+    # -- Labels of the cluster DNS pods.
+    podLabels:
+      k8s-app: kube-dns
+  # -- Additional egress rules (NetworkPolicy `egress` items), e.g. to the
+  # identity provider. How they match depends on the CNI: verify them.
+  extraEgress: []
+
+backup:
+  # -- Schedule consistent backups (CronJob).
+  enabled: false
+  # -- Cron schedule.
+  schedule: "17 3 * * *"
+  # -- Time zone of the schedule.
+  timeZone: Etc/UTC
+  # -- Number of archives kept.
+  retention: 14
+  persistence:
+    # -- Existing claim for the archives. Empty: the chart creates one.
+    existingClaim: ""
+    # -- Storage class of the created claim (empty: cluster default).
+    storageClass: ""
+    # -- Size of the created claim.
+    size: 2Gi
+  # -- Backup job resources.
+  resources:
+    requests:
+      cpu: 10m
+      memory: 32Mi
+    limits:
+      memory: 128Mi
+
+# -- Pod security context, merged over the restricted defaults of
+# homelab-common. The upstream image runs as root: set a uid.
+podSecurityContext:
+  runAsUser: 1000
+  runAsGroup: 1000
+  fsGroup: 1000
+  fsGroupChangePolicy: OnRootMismatch
+
+# -- Container security context, merged over the restricted defaults.
+securityContext: {}
+
+# -- Vaultwarden container resources.
+resources:
+  requests:
+    cpu: 20m
+    memory: 64Mi
+  limits:
+    memory: 256Mi
+
+probes:
+  startup:
+    # -- Startup probe failure threshold (period 5s).
+    failureThreshold: 30
+  liveness:
+    # -- Liveness probe period.
+    periodSeconds: 30
+  readiness:
+    # -- Readiness probe period.
+    periodSeconds: 10
+
+# -- Node selector.
+nodeSelector: {}
+# -- Tolerations.
+tolerations: []
+# -- Affinity.
+affinity: {}

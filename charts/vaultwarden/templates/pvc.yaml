@@ -1,0 +1,32 @@
+{{- define "vaultwarden.pvc" -}}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ .name }}
+  labels:
+    {{- include "homelab-common.labels" (dict "context" .context "component" .component) | nindent 4 }}
+  {{- if .retain }}
+  annotations:
+    # Never deleted with the release: neither by Helm nor by ArgoCD.
+    helm.sh/resource-policy: keep
+    argocd.argoproj.io/sync-options: Prune=false,Delete=false
+  {{- end }}
+spec:
+  accessModes:
+    - ReadWriteOnce
+  {{- with .storageClass }}
+  storageClassName: {{ . }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .size }}
+{{- end -}}
+
+{{- if not .Values.persistence.existingClaim }}
+---
+{{ include "vaultwarden.pvc" (dict "context" $ "component" "server" "name" (include "vaultwarden.dataClaim" .) "retain" .Values.persistence.retain "storageClass" .Values.persistence.storageClass "size" .Values.persistence.size) }}
+{{- end }}
+{{- if and .Values.backup.enabled (not .Values.backup.persistence.existingClaim) }}
+---
+{{ include "vaultwarden.pvc" (dict "context" $ "component" "backup" "name" (include "vaultwarden.backupClaim" .) "retain" true "storageClass" .Values.backup.persistence.storageClass "size" .Values.backup.persistence.size) }}
+{{- end }}

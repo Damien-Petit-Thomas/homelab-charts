@@ -1,0 +1,109 @@
+{{- if .Values.backup.enabled }}
+{{- $fullname := include "homelab-common.fullname" . }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ $fullname }}-scripts
+  labels:
+    {{- include "homelab-common.labels" (dict "context" $ "component" "backup") | nindent 4 }}
+data:
+  backup.sh: |-
+    {{- .Files.Get "files/backup.sh" | nindent 4 }}
+  restore.sh: |-
+    {{- .Files.Get "files/restore.sh" | nindent 4 }}
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ $fullname }}-backup
+  labels:
+    {{- include "homelab-common.labels" (dict "context" $ "component" "backup") | nindent 4 }}
+spec:
+  schedule: {{ .Values.backup.schedule | quote }}
+  timeZone: {{ .Values.backup.timeZone | quote }}
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 3600
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    metadata:
+      labels:
+        {{- include "homelab-common.labels" (dict "context" $ "component" "backup") | nindent 8 }}
+    spec:
+      backoffLimit: 2
+      activeDeadlineSeconds: 900
+      template:
+        metadata:
+          labels:
+            {{- include "homelab-common.labels" (dict "context" $ "component" "backup") | nindent 12 }}
+        spec:
+          restartPolicy: Never
+          serviceAccountName: {{ include "homelab-common.serviceAccountName" . }}
+          automountServiceAccountToken: false
+          enableServiceLinks: false
+          # Same uid as the server: the backup reads its files.
+          securityContext:
+            {{- include "homelab-common.podSecurityContext" (dict "securityContext" .Values.podSecurityContext) | nindent 12 }}
+          {{- /*
+          The data volume is ReadWriteOnce: this pod must run on the node
+          that mounts it. A local volume pins it there through its node
+          affinity; other storage needs .Values.affinity to keep the pods
+          together.
+          */}}
+          {{- with .Values.nodeSelector }}
+          nodeSelector:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.tolerations }}
+          tolerations:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.affinity }}
+          affinity:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          containers:
+            - name: backup
+              # The Vaultwarden image itself: its `backup` command makes the
+              # consistent snapshot, and it ships sh and tar.
+              image: {{ include "homelab-common.image" (dict "image" .Values.image "path" "image") }}
+              imagePullPolicy: {{ .Values.image.pullPolicy }}
+              command: ["/bin/sh", "/scripts/backup.sh"]
+              env:
+                - name: DATA_FOLDER
+                  value: /data
+                - name: BACKUP_DIR
+                  value: /backup
+                - name: RETENTION
+                  value: {{ .Values.backup.retention | quote }}
+              securityContext:
+                {{- include "homelab-common.containerSecurityContext" (dict "securityContext" .Values.securityContext "path" "securityContext") | nindent 16 }}
+              {{- with .Values.backup.resources }}
+              resources:
+                {{- toYaml . | nindent 16 }}
+              {{- end }}
+              volumeMounts:
+                - name: data
+                  mountPath: /data
+                - name: backup
+                  mountPath: /backup
+                - name: scripts
+                  mountPath: /scripts
+                  readOnly: true
+                - name: tmp
+                  mountPath: /tmp
+          volumes:
+            - name: data
+              persistentVolumeClaim:
+                claimName: {{ include "vaultwarden.dataClaim" . }}
+            - name: backup
+              persistentVolumeClaim:
+                claimName: {{ include "vaultwarden.backupClaim" . }}
+            - name: scripts
+              configMap:
+                name: {{ $fullname }}-scripts
+                defaultMode: 0444
+            - name: tmp
+              emptyDir:
+                sizeLimit: 64Mi
+{{- end }}

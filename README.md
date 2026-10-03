@@ -8,7 +8,7 @@ chart, OCI-published and signed.
 | Chart | Type | Purpose | Status |
 |---|---|---|---|
 | [`homelab-common`](charts/homelab-common) | library | Shared templates: names and labels, image references pinned by digest, restricted security contexts, ExternalSecrets, homelab CA trust | unreleased |
-| `vaultwarden` | application | Reference chart: Pod Security `restricted`, read-only root filesystem, SQLite with tested backup and restore | planned |
+| [`vaultwarden`](charts/vaultwarden) | application | Reference chart: Pod Security `restricted`, read-only root filesystem, SQLite with tested backup and restore, SSO that survives an identity provider outage | unreleased |
 
 ## Principles
 
@@ -17,7 +17,8 @@ chart, OCI-published and signed.
 - **Reproducible**: images referenced by digest; toolchain pinned in
   `mise.toml` and `mise.lock`; third-party actions pinned to commit SHAs.
 - **Tested**: unit tests on rendered manifests, schema validation, policy
-  checks, installation tests on a real cluster, including failure cases.
+  checks, installation tests on a real cluster, including failure cases;
+  every tested behaviour is mutation-tested ([ADR 0005](docs/adr/0005-mutation-testing.md)).
 - **Verifiable**: charts published to GHCR as OCI artifacts, signed with
   cosign (keyless) and shipped with build provenance.
 - **Decisions on record**: [architecture decision records](docs/adr/README.md).
