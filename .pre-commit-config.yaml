@@ -15,7 +15,7 @@ repos:
         args: [--fix=lf]
       - id: check-yaml
         # Helm templates are Go templates, not YAML.
-        exclude: ^charts/[^/]+/templates/
+        exclude: ^(charts|test)/[^/]+/templates/
       - id: check-json
       - id: check-toml
       - id: check-merge-conflict
