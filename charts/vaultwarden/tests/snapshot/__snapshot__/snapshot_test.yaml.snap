@@ -5,7 +5,7 @@ renders every resource as reviewed:
 
       URL: https://vaultwarden.example.org
       SSO: https://sso.example.org/realms/home; password login stays available if the provider is down.
-      Backups: 17 3 * * * (Etc/UTC), 14 kept in vw-vaultwarden-backup.
+      Backups: 17 3 * * * (Etc/UTC), 14 kept in vaultwarden-backup-nfs.
       Run one now:
         kubectl -n vaultwarden create job --from=cronjob/vw-vaultwarden-backup vw-vaultwarden-backup-manual
 
@@ -217,7 +217,7 @@ renders every resource as reviewed:
                     claimName: vw-vaultwarden-data
                 - name: backup
                   persistentVolumeClaim:
-                    claimName: vw-vaultwarden-backup
+                    claimName: vaultwarden-backup-nfs
                 - configMap:
                     defaultMode: 292
                     name: vw-vaultwarden-scripts
@@ -567,27 +567,6 @@ renders every resource as reviewed:
           storage: 1Gi
   10: |
     apiVersion: v1
-    kind: PersistentVolumeClaim
-    metadata:
-      annotations:
-        argocd.argoproj.io/sync-options: Prune=false,Delete=false
-        helm.sh/resource-policy: keep
-      labels:
-        app.kubernetes.io/component: backup
-        app.kubernetes.io/instance: vw
-        app.kubernetes.io/managed-by: Helm
-        app.kubernetes.io/name: vaultwarden
-        app.kubernetes.io/version: 1.37.3
-        helm.sh/chart: vaultwarden-0.0.0-snapshot
-      name: vw-vaultwarden-backup
-    spec:
-      accessModes:
-        - ReadWriteOnce
-      resources:
-        requests:
-          storage: 2Gi
-  11: |
-    apiVersion: v1
     kind: Service
     metadata:
       labels:
@@ -609,7 +588,7 @@ renders every resource as reviewed:
         app.kubernetes.io/instance: vw
         app.kubernetes.io/name: vaultwarden
       type: ClusterIP
-  12: |
+  11: |
     apiVersion: v1
     automountServiceAccountToken: false
     kind: ServiceAccount
@@ -621,13 +600,13 @@ renders every resource as reviewed:
         app.kubernetes.io/version: 1.37.3
         helm.sh/chart: vaultwarden-0.0.0-snapshot
       name: vw-vaultwarden
-  13: |
+  12: |
     apiVersion: v1
     kind: Pod
     metadata:
       annotations:
         helm.sh/hook: test
-        helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+        helm.sh/hook-delete-policy: before-hook-creation
       labels:
         app.kubernetes.io/component: test
         app.kubernetes.io/instance: vw

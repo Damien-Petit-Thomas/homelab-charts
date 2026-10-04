@@ -47,27 +47,31 @@ tests:
       - hasDocuments:
           count: 0
 
-  - it: always protects the backup claim
+  - it: never creates a backup claim
     template: templates/pvc.yaml
     set:
       backup.enabled: true
-      persistence.retain: false
+      backup.existingClaim: nfs-backups
     asserts:
       - hasDocuments:
-          count: 2
+          count: 1
       - equal:
           path: metadata.name
-          value: vw-vaultwarden-backup
-        documentIndex: 1
-      - equal:
-          path: metadata.annotations["helm.sh/resource-policy"]
-          value: keep
-        documentIndex: 1
+          value: vw-vaultwarden-data
+
+  - it: requires a backup claim when backups are enabled
+    template: templates/backup.yaml
+    set:
+      backup.enabled: true
+    asserts:
+      - failedTemplate:
+          errorPattern: 'backup.existingClaim is required when backup.enabled is true'
 
   - it: ships the backup and restore scripts
     template: templates/backup.yaml
     set:
       backup.enabled: true
+      backup.existingClaim: nfs-backups
     documentSelector:
       path: kind
       value: ConfigMap
@@ -83,6 +87,7 @@ tests:
     template: templates/backup.yaml
     set:
       backup.enabled: true
+      backup.existingClaim: nfs-backups
     documentSelector:
       path: kind
       value: CronJob
@@ -101,6 +106,7 @@ tests:
     template: templates/backup.yaml
     set:
       backup.enabled: true
+      backup.existingClaim: nfs-backups
       backup.retention: 7
     documentSelector:
       path: kind
@@ -127,22 +133,6 @@ tests:
             name: data
             persistentVolumeClaim:
               claimName: vw-vaultwarden-data
-      - contains:
-          path: spec.jobTemplate.spec.template.spec.volumes
-          content:
-            name: backup
-            persistentVolumeClaim:
-              claimName: vw-vaultwarden-backup
-
-  - it: writes to an existing backup claim
-    template: templates/backup.yaml
-    set:
-      backup.enabled: true
-      backup.persistence.existingClaim: nfs-backups
-    documentSelector:
-      path: kind
-      value: CronJob
-    asserts:
       - contains:
           path: spec.jobTemplate.spec.template.spec.volumes
           content:

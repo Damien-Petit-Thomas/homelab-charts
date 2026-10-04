@@ -7,7 +7,9 @@ metadata:
     {{- include "vaultwarden.clientLabel" . | nindent 4 }}
   annotations:
     helm.sh/hook: test
-    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+    # Kept after the run so that `helm test --logs` can read it (hook-succeeded
+    # deletes it first and the command waits forever); replaced on the next run.
+    helm.sh/hook-delete-policy: before-hook-creation
 spec:
   restartPolicy: Never
   automountServiceAccountToken: false

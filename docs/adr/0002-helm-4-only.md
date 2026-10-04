@@ -8,7 +8,8 @@ v4.2.1. Helm 3 receives security fixes only, until 2026-11-11.
 
 ## Decision
 - Charts are developed and tested with Helm 4 only. The version used locally
-  and in CI is pinned in `mise.toml`, on the same minor as ArgoCD.
+  and in CI is pinned in `mise.toml`, on the same minor as ArgoCD (latest
+  patch: 4.2.1 waits the whole timeout on deletions, helm/helm#32214).
 - Chart API `v2`; `kubeVersion` constraints are declared in each `Chart.yaml`.
 
 ## Consequences

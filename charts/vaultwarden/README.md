@@ -18,7 +18,8 @@ an unknown key or a malformed URL fails the render.
 | API access | no service account token, no service links | Vaultwarden never calls the API; service links would inject `<SERVICE>_PORT` variables next to Rocket's `ROCKET_*` |
 | Upstream defaults | sign-ups, invitations and password hints off | an instance for known users |
 | Network | ingress from the ingress controller only, egress to DNS plus explicit rules; backup job isolated | least privilege |
-| Data | claims kept on uninstall (`helm.sh/resource-policy: keep`, ArgoCD `Prune=false,Delete=false`) | a password vault outlives its release |
+| Data | claim kept on uninstall (`helm.sh/resource-policy: keep`, ArgoCD `Prune=false,Delete=false`) | a password vault outlives its release |
+| Backups | archives on an existing claim only, never one the chart creates | a claim on the default storage class would share the data's disk: no backup |
 
 ## Minimal values
 
@@ -32,6 +33,7 @@ ingress:
     secretName: vaultwarden-tls
 backup:
   enabled: true
+  existingClaim: vaultwarden-backup   # on other storage than the data, e.g. NFS
 ```
 
 ## Single sign-on (OpenID Connect)
@@ -93,6 +95,11 @@ Vaultwarden image itself:
    renamed: a failed run never leaves a partial archive under a valid name.
 3. Archives beyond `backup.retention` are deleted, oldest first.
 
+The archives go to `backup.existingClaim`, which the chart requires and never
+creates: on the default storage class, a chart-made claim would sit on the
+same disk as the data (and, with `WaitForFirstConsumer` binding, stay Pending
+until the first run, keeping the release unready).
+
 The job needs no network (its NetworkPolicy denies everything) and runs with
 the server's uid and restrictions. The data volume is `ReadWriteOnce`: the
 job must run on the node that mounts it. A `local` volume pins it there
@@ -111,6 +118,7 @@ kubectl -n vaultwarden create job --from=cronjob/vaultwarden-backup vaultwarden-
 ConfigMap. It verifies the archive, moves the current files to
 `/data/.pre-restore-<timestamp>/` (nothing is deleted), then extracts.
 
+<!-- restore-procedure:begin (executed as-is by test/e2e/vaultwarden.sh) -->
 ```bash
 NS=vaultwarden; NAME=vaultwarden
 kubectl -n "$NS" scale deployment "$NAME" --replicas=0
@@ -123,6 +131,7 @@ kubectl -n "$NS" wait --for=condition=complete job/"$NAME"-restore --timeout=300
 kubectl -n "$NS" logs job/"$NAME"-restore
 kubectl -n "$NS" scale deployment "$NAME" --replicas=1
 ```
+<!-- restore-procedure:end -->
 
 Pass an archive name to restore an older one:
 `["/bin/sh", "/scripts/restore.sh", "/backup/vaultwarden-20261003T031700Z.tar.gz"]`.
@@ -139,5 +148,14 @@ before the backup is present.
 ```bash
 mise run charts:test       # unit tests and snapshot
 mise run charts:mutation   # each tested behaviour, weakened in turn, must fail its tests
+mise run e2e               # installation test on a throwaway kind cluster
 helm test <release>        # GET /alive through the Service, from a pod the NetworkPolicy admits
 ```
+
+The installation test ([test/e2e/vaultwarden.sh](../../test/e2e/vaultwarden.sh))
+runs in CI on Kubernetes 1.34, 1.35 and 1.36, in a namespace enforcing Pod
+Security `restricted`: install, `helm test`, NetworkPolicy (a labelled pod is
+admitted, any other is refused), account creation, backup, data loss,
+restore by executing the [Restore](#restore) block above as written, login
+with the restored account, and the data claim surviving `helm uninstall`.
+Disabling the NetworkPolicy makes it fail at the refusal step.

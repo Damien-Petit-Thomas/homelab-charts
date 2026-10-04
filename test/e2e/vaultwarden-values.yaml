@@ -1,0 +1,11 @@
+# Values of the installation test (test/e2e/vaultwarden.sh).
+domain: https://vaultwarden.e2e.example
+# The test registers an account through the API.
+signupsAllowed: true
+backup:
+  enabled: true
+  # Never fires during the test: backups are started by hand.
+  schedule: "0 0 1 1 *"
+  retention: 3
+  # Created by the test before the install, as an operator would.
+  existingClaim: vaultwarden-backup

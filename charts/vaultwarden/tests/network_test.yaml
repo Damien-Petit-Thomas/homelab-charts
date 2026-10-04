@@ -130,5 +130,8 @@ tests:
           path: metadata.annotations["helm.sh/hook"]
           value: test
       - equal:
+          path: metadata.annotations["helm.sh/hook-delete-policy"]
+          value: before-hook-creation
+      - equal:
           path: spec.containers[0].command[-1]
           value: http://vw-vaultwarden:8080/alive

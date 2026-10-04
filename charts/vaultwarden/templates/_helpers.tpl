@@ -70,8 +70,12 @@ Volume holding /data.
 {{- .Values.persistence.existingClaim | default (printf "%s-data" (include "homelab-common.fullname" .)) -}}
 {{- end -}}
 
+{{/*
+Claim receiving the backup archives. Never created by the chart: on the
+default storage class it would share the data's disk, which is no backup.
+*/}}
 {{- define "vaultwarden.backupClaim" -}}
-{{- .Values.backup.persistence.existingClaim | default (printf "%s-backup" (include "homelab-common.fullname" .)) -}}
+{{- required "vaultwarden: backup.existingClaim is required when backup.enabled is true (a claim on other storage than the data, e.g. NFS)" .Values.backup.existingClaim -}}
 {{- end -}}
 
 {{/*
