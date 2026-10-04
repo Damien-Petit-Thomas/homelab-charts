@@ -38,3 +38,4 @@ networkPolicy:
           protocol: TCP
 backup:
   enabled: true
+  existingClaim: vaultwarden-backup-nfs

@@ -249,11 +249,11 @@
   file: charts/vaultwarden/templates/pvc.yaml
   find: '    helm.sh/resource-policy: keep'
   replace: ''
-- description: backup claim follows the data retain flag
+- description: backup claim not required (archives on the data's disk)
   chart: charts/vaultwarden
-  file: charts/vaultwarden/templates/pvc.yaml
-  find: '"retain" true "storageClass" .Values.backup'
-  replace: '"retain" .Values.persistence.retain "storageClass" .Values.backup'
+  file: charts/vaultwarden/templates/_helpers.tpl
+  find: '{{- required "vaultwarden: backup.existingClaim is required when backup.enabled is true (a claim on other storage than the data, e.g. NFS)" .Values.backup.existingClaim -}}'
+  replace: '{{- .Values.backup.existingClaim | default "backup" -}}'
 - description: concurrent backups allowed
   chart: charts/vaultwarden
   file: charts/vaultwarden/templates/backup.yaml
@@ -284,3 +284,8 @@
   file: charts/vaultwarden/values.schema.json
   find: '"pattern": "^https://[^/\\s]+(/\\S*[^/\\s])?$"'
   replace: '"pattern": "^https?://[^/\\s]+(/\\S*[^/\\s])?$"'
+- description: test pod deleted on success (helm test --logs hangs)
+  chart: charts/vaultwarden
+  file: charts/vaultwarden/templates/tests/test-alive.yaml
+  find: 'helm.sh/hook-delete-policy: before-hook-creation'
+  replace: 'helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded'

@@ -162,13 +162,10 @@ backup:
   timeZone: Etc/UTC
   # -- Number of archives kept.
   retention: 14
-  persistence:
-    # -- Existing claim for the archives. Empty: the chart creates one.
-    existingClaim: ""
-    # -- Storage class of the created claim (empty: cluster default).
-    storageClass: ""
-    # -- Size of the created claim.
-    size: 2Gi
+  # -- Claim receiving the archives (required when enabled). It must live on
+  # other storage than the data, e.g. NFS: a claim on the same disk does not
+  # survive the loss of that disk. The chart never creates it.
+  existingClaim: ""
   # -- Backup job resources.
   resources:
     requests:

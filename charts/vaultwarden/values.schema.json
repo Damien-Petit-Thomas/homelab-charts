@@ -175,15 +175,7 @@
         "schedule": { "type": "string", "minLength": 9 },
         "timeZone": { "type": "string", "minLength": 1 },
         "retention": { "type": "integer", "minimum": 1 },
-        "persistence": {
-          "type": "object",
-          "additionalProperties": false,
-          "properties": {
-            "existingClaim": { "type": "string" },
-            "storageClass": { "type": "string" },
-            "size": { "$ref": "#/$defs/quantity" }
-          }
-        },
+        "existingClaim": { "type": "string" },
         "resources": { "$ref": "#/$defs/resources" }
       }
     },
