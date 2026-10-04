@@ -9,3 +9,5 @@ charts/*/charts/
 # rebuilt on every run.
 test/*/charts/
 test/*/Chart.lock
+# Local file:// dependencies only: a lock pins nothing the commit does not.
+charts/*/Chart.lock
