@@ -31,6 +31,8 @@ yq = "4.53.6"
 kind = "0.33.0"
 kubectl = "1.36.5"
 jq = "1.8.2"
+# Chart signing and verification (keyless, Sigstore).
+cosign = "3.1.3"
 
 [tasks.lint]
 description = "Run every pre-commit hook on the whole tree"
