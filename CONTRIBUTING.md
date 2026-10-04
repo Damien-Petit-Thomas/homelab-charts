@@ -9,7 +9,14 @@ the same versions with `jdx/mise-action`.
 mise trust && mise install   # installs the pinned versions, checksums verified
 pre-commit install           # git hooks, run from a mise-activated shell
 mise run lint                # every hook on the whole tree, as in CI
+mise run charts:test         # unit tests
+mise run charts:mutation     # mutation campaign (ADR 0005)
+mise run e2e                 # installation tests on a throwaway kind cluster
 ```
+
+`mise run e2e` needs Docker. It gives kind a throwaway kubeconfig, so your
+own `KUBECONFIG` is never modified, and the script refuses to run against a
+context that is not `kind-*`.
 
 ## Commits
 
