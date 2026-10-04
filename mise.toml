@@ -11,8 +11,11 @@ install_before = "7d"
 
 [tools]
 # Same minor as the Helm embedded in the ArgoCD repo-server (v4.2.1), the
-# real consumer of these charts. Helm 3 is not supported (ADR 0002).
-helm = "4.2.1"
+# real consumer of these charts. Not 4.2.1 itself: its waits on deletions
+# (hooks, uninstall) last the whole --timeout (helm/helm#32214, fixed in
+# 4.2.2); ArgoCD only renders templates, so it is not affected.
+# Helm 3 is not supported (ADR 0002).
+helm = "4.2.4"
 actionlint = "1.7.12"
 shellcheck = "0.11.0"
 zizmor = "1.30.1"
@@ -24,6 +27,10 @@ yq = "4.53.6"
 # the Helm 3 engine; 1.2.x (Helm 4 engine) is held back by the 7-day cooldown.
 # Helm 4 itself still runs lint, template and install tests.
 "github:helm-unittest/helm-unittest" = { version = "1.1.2", bin = "untt" }
+# Installation tests (test/e2e). kubectl: same minor as the cluster.
+kind = "0.33.0"
+kubectl = "1.36.5"
+jq = "1.8.2"
 
 [tasks.lint]
 description = "Run every pre-commit hook on the whole tree"
@@ -31,19 +38,34 @@ run = "pre-commit run --all-files --show-diff-on-failure"
 
 [tasks."charts:deps"]
 description = "Resolve file:// dependencies of every chart and test fixture"
-run = 'for c in charts/*/ test/*/; do helm dependency build --skip-refresh "$c" >/dev/null || exit 1; done'
+run = 'for f in charts/*/Chart.yaml test/*/Chart.yaml; do helm dependency build --skip-refresh "${f%/Chart.yaml}" >/dev/null || exit 1; done'
 
 [tasks."charts:lint"]
 description = "helm lint --strict on every chart and test fixture"
 depends = ["charts:deps"]
-run = 'for c in charts/*/ test/*/; do helm lint --strict "$c" || exit 1; done'
+run = 'for f in charts/*/Chart.yaml test/*/Chart.yaml; do helm lint --strict "${f%/Chart.yaml}" || exit 1; done'
 
 [tasks."charts:test"]
 description = "helm-unittest on every chart and fixture that has tests"
 depends = ["charts:deps"]
-run = 'for c in charts/*/ test/*/; do if [ -d "$c/tests" ]; then untt --strict -f "tests/*_test.yaml" -f "tests/snapshot/*_test.yaml" "$c" || exit 1; fi; done'
+run = 'for f in charts/*/Chart.yaml test/*/Chart.yaml; do c="${f%/Chart.yaml}"; if [ -d "$c/tests" ]; then untt --strict -f "tests/*_test.yaml" -f "tests/snapshot/*_test.yaml" "$c" || exit 1; fi; done'
 
 [tasks."charts:mutation"]
 description = "Weaken each tested behaviour in turn; the targeted tests must fail"
 depends = ["charts:deps"]
 run = "scripts/mutation-test.sh test/mutations.yaml"
+
+[tasks.e2e]
+description = "Installation tests on a throwaway kind cluster (KIND_NODE_IMAGE selects Kubernetes)"
+depends = ["charts:deps"]
+run = """
+set -eu
+: "${KIND_NODE_IMAGE:=kindest/node:v1.36.4@sha256:099e049362a1526b2db71494e1947aae99bd16290d7c895f2b7ea312e3cbfaed}"
+# kind writes its credentials to $KUBECONFIG and switches its current
+# context: give it a throwaway file, never the caller's kubeconfig.
+KUBECONFIG="$(mktemp)"
+export KUBECONFIG
+trap 'kind delete cluster --name homelab-charts-e2e; rm -f "$KUBECONFIG"' EXIT
+kind create cluster --name homelab-charts-e2e --image "$KIND_NODE_IMAGE" --wait 120s
+test/e2e/vaultwarden.sh
+"""
