@@ -20,6 +20,9 @@ maintainers:
   - name: Damien Petit-Thomas
     url: https://github.com/Damien-Petit-Thomas
 dependencies:
+  # Vendored into the published package (charts/), so consumers never resolve
+  # file://. A range rather than a pin: a library release must not break the
+  # build; the packaged library is whatever this commit holds.
   - name: homelab-common
-    version: 0.1.0
+    version: ">=0.1.0 <1.0.0"
     repository: file://../homelab-common

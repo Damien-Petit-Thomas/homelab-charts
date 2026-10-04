@@ -31,6 +31,13 @@ versions and changelogs from them ([ADR 0003](docs/adr/0003-release-please.md)):
 | `feat(<chart>)!: ...` or a `BREAKING CHANGE:` footer | major |
 | `chore`, `ci`, `docs`, `test`, `refactor` | none |
 
+## Releases
+
+Merging a release pull request (opened by release-please) tags
+`<chart>-vX.Y.Z`; the `release` workflow then publishes the chart to
+`oci://ghcr.io/damien-petit-thomas/charts`, signs it and attests its
+provenance, then verifies both. Nothing is published by hand.
+
 ## Pull requests
 
 `main` accepts pull requests only. A pull request merges when `ci-ok` and
