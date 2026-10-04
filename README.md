@@ -9,6 +9,7 @@ chart, OCI-published and signed.
 |---|---|---|---|
 | [`homelab-common`](charts/homelab-common) | library | Shared templates: names and labels, image references pinned by digest, restricted security contexts, ExternalSecrets, homelab CA trust | unreleased |
 | [`vaultwarden`](charts/vaultwarden) | application | Reference chart: Pod Security `restricted`, read-only root filesystem, SQLite with tested backup and restore, SSO that survives an identity provider outage | unreleased |
+| `homelab-policies` | admission policies | ValidatingAdmissionPolicies enforcing the homelab conventions (digest-pinned images, no `latest`, allowed registries) on every workload, whatever its chart ([ADR 0006](docs/adr/0006-chart-scope.md)) | planned |
 
 ## Principles
 
