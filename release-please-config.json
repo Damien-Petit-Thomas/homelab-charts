@@ -1,0 +1,16 @@
+{
+  "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json",
+  "release-type": "helm",
+  "include-component-in-tag": true,
+  "include-v-in-tag": true,
+  "tag-separator": "-",
+  "bump-minor-pre-major": true,
+  "bump-patch-for-minor-pre-major": false,
+  "bootstrap-sha": "5cf27a96687409b4b1b3053b001d985c4e56176c",
+  "separate-pull-requests": true,
+  "pull-request-title-pattern": "chore${scope}: release ${component} ${version}",
+  "packages": {
+    "charts/homelab-common": { "component": "homelab-common" },
+    "charts/vaultwarden": { "component": "vaultwarden" }
+  }
+}
