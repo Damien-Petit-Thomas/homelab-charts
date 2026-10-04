@@ -1,11 +1,10 @@
 apiVersion: v2
 name: homelab-common
 description: >-
-  Library chart: names and labels, digest-pinned image references,
-  Pod Security "restricted" security contexts, ExternalSecrets and
-  homelab CA trust.
+  Library chart: names and labels, digest-pinned image references, Pod Security
+  "restricted" security contexts, ExternalSecrets and homelab CA trust.
 type: library
-version: 0.1.0
+version: 1.0.0
 kubeVersion: ">=1.34.0-0"
 home: https://github.com/Damien-Petit-Thomas/homelab-charts
 sources:
