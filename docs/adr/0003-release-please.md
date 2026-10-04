@@ -20,6 +20,19 @@ its dependents.
   provenance.
 - The action is pinned to a commit SHA, like every third-party action.
 
+## Implementation
+- release-please runs with a token of a dedicated GitHub App, scoped to this
+  repository with `contents` and `pull-requests` write: a pull request opened
+  with `GITHUB_TOKEN` triggers no workflow, so a release PR would never get
+  its required checks. The App's credentials live in the `release`
+  environment, which deploys from `main` only.
+- An application chart vendors `homelab-common` into its package (`charts/`):
+  consumers never resolve the `file://` dependency. The dependency is a range
+  (`>=0.1.0 <1.0.0`), without a lock: the packaged library is the one in the
+  released commit. Shipping a library change in an application chart takes a
+  commit scoped to that chart.
+- Release tags `<chart>-vX.Y.Z` are immutable (ruleset `release-tags`).
+
 ## Consequences
 - Versions follow the commit history: a `feat!` or `BREAKING CHANGE` footer
   is required for a major bump, so commit messages are reviewed like code.

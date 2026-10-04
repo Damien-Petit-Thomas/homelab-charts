@@ -22,6 +22,8 @@ Only the latest release of each chart receives fixes.
   their checksums, and their build provenance where upstream publishes it.
 - Dependency updates wait 7 days after an upstream release (Dependabot
   cooldown, mise `install_before`).
+- Published charts are signed with cosign (keyless, GitHub OIDC) and carry a
+  SLSA build provenance attestation; see the README for verification.
 
 ## OpenSSF Scorecard: accepted exceptions
 
