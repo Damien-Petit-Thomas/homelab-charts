@@ -1,4 +1,4 @@
 {
   "charts/homelab-common": "0.0.0",
-  "charts/vaultwarden": "0.0.0"
+  "charts/vaultwarden": "1.0.0"
 }
