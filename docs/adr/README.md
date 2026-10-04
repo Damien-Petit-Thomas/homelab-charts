@@ -10,3 +10,4 @@ rejected alternatives. Superseded records are kept, with their successor noted.
 | [0003](0003-release-please.md) | Per-chart releases with release-please | Accepted |
 | [0004](0004-solo-maintainer-branch-protection.md) | Branch protection for a single maintainer | Accepted |
 | [0005](0005-mutation-testing.md) | Mutation testing of chart unit tests | Accepted |
+| [0006](0006-chart-scope.md) | Which applications get a chart from this repository | Accepted |
