@@ -1,11 +1,11 @@
 apiVersion: v2
 name: vaultwarden
 description: >-
-  Vaultwarden, hardened: Pod Security "restricted", read-only root
-  filesystem, SQLite with consistent scheduled backups, optional OpenID
-  Connect login that keeps working when the identity provider is down.
+  Vaultwarden, hardened: Pod Security "restricted", read-only root filesystem,
+  SQLite with consistent scheduled backups, optional OpenID Connect login that
+  keeps working when the identity provider is down.
 type: application
-version: 0.1.0
+version: 1.0.0
 appVersion: "1.37.3"
 kubeVersion: ">=1.34.0-0"
 home: https://github.com/Damien-Petit-Thomas/homelab-charts
