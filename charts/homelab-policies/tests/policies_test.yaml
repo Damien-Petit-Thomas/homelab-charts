@@ -1,0 +1,131 @@
+suite: policies and bindings
+templates:
+  - templates/policies.yaml
+release:
+  name: pol
+tests:
+  - it: renders one policy and two bindings per rule
+    asserts:
+      - hasDocuments:
+          count: 9
+
+  - it: binds each binding to its policy
+    documentSelector:
+      path: metadata.name
+      value: homelab-image-registries-enforce
+    asserts:
+      - isKind:
+          of: ValidatingAdmissionPolicyBinding
+      - equal:
+          path: spec.policyName
+          value: homelab-image-registries
+
+  - it: evaluates pods and every workload kind, on create and update
+    documentSelector:
+      path: metadata.name
+      value: homelab-image-digest
+    asserts:
+      - equal:
+          path: spec.matchConstraints.resourceRules
+          value:
+            - {apiGroups: [""], apiVersions: [v1], resources: [pods], operations: [CREATE, UPDATE]}
+            - {apiGroups: [apps], apiVersions: [v1], resources: [deployments, statefulsets, daemonsets, replicasets], operations: [CREATE, UPDATE]}
+            - {apiGroups: [batch], apiVersions: [v1], resources: [jobs, cronjobs], operations: [CREATE, UPDATE]}
+      - equal:
+          path: spec.failurePolicy
+          value: Fail
+
+  - it: collects init and ephemeral containers, mapped to strings before concatenation
+    documentSelector:
+      path: metadata.name
+      value: homelab-image-digest
+    asserts:
+      - matchRegex:
+          path: spec.variables[1].expression
+          pattern: 'initContainers\.map\(c, c\.image\)'
+      - matchRegex:
+          path: spec.variables[1].expression
+          pattern: 'ephemeralContainers\.map\(c, c\.image\)'
+
+  - it: requires a sha256 digest
+    documentSelector:
+      path: metadata.name
+      value: homelab-image-digest
+    asserts:
+      - equal:
+          path: spec.validations[0].expression
+          value: "variables.images.all(i, i.matches('@sha256:[a-f0-9]{64}$'))"
+
+  - it: refuses latest and the implicit latest
+    documentSelector:
+      path: metadata.name
+      value: homelab-image-no-latest
+    asserts:
+      - lengthEqual:
+          path: spec.validations
+          count: 2
+
+  - it: normalizes implicit docker.io before matching the allowed prefixes
+    documentSelector:
+      path: metadata.name
+      value: homelab-image-registries
+    asserts:
+      - matchRegex:
+          path: spec.validations[0].expression
+          pattern: "\\['docker\\.io/'|\\[\"docker\\.io/\""
+      - matchRegex:
+          path: spec.validations[0].expression
+          pattern: "'docker\\.io/' \\+ i"
+
+  - it: warns and audits outside opted-in namespaces, never in excluded ones
+    documentSelector:
+      path: metadata.name
+      value: homelab-image-digest-audit
+    asserts:
+      - equal:
+          path: spec.validationActions
+          value: [Warn, Audit]
+      - equal:
+          path: spec.matchResources.namespaceSelector.matchExpressions
+          value:
+            - key: kubernetes.io/metadata.name
+              operator: NotIn
+              values: [kube-system, kube-public, kube-node-lease]
+            - key: homelab.internal/policies
+              operator: NotIn
+              values: [enforce]
+
+  - it: denies in namespaces carrying the enforce label
+    documentSelector:
+      path: metadata.name
+      value: homelab-image-digest-enforce
+    asserts:
+      - equal:
+          path: spec.validationActions
+          value: [Deny]
+      - equal:
+          path: spec.matchResources.namespaceSelector.matchLabels
+          value:
+            homelab.internal/policies: enforce
+
+  - it: renders only the enabled rules
+    set:
+      rules.noLatestTag.enabled: false
+      rules.allowedRegistries.enabled: false
+    asserts:
+      - hasDocuments:
+          count: 3
+
+  - it: requires at least one registry when the rule is enabled
+    set:
+      rules.allowedRegistries.registries: []
+    asserts:
+      - failedTemplate:
+          errorPattern: 'rules.allowedRegistries.registries must list at least one prefix'
+
+  - it: refuses a registry prefix without a trailing slash (look-alike hosts)
+    set:
+      rules.allowedRegistries.registries: [ghcr.io]
+    asserts:
+      - failedTemplate:
+          errorPattern: 'registry prefix "ghcr.io" must end with "/"'

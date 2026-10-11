@@ -58,7 +58,7 @@ depends = ["charts:deps"]
 run = "scripts/mutation-test.sh test/mutations.yaml"
 
 [tasks.e2e]
-description = "Installation tests on a throwaway kind cluster (KIND_NODE_IMAGE selects Kubernetes)"
+description = "Installation tests (test/e2e/*.sh) on a throwaway kind cluster (KIND_NODE_IMAGE selects Kubernetes)"
 depends = ["charts:deps"]
 run = """
 set -eu
@@ -69,5 +69,5 @@ KUBECONFIG="$(mktemp)"
 export KUBECONFIG
 trap 'kind delete cluster --name homelab-charts-e2e; rm -f "$KUBECONFIG"' EXIT
 kind create cluster --name homelab-charts-e2e --image "$KIND_NODE_IMAGE" --wait 120s
-test/e2e/vaultwarden.sh
+for t in test/e2e/*.sh; do "$t"; done
 """
