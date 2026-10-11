@@ -12,9 +12,10 @@ its dependents.
 - release-please, in manifest mode, with one package per chart. Commits
   follow Conventional Commits with the chart as scope
   (`feat(vaultwarden): ...`).
-- release-please opens one release pull request per chart: it bumps `version`
-  in `Chart.yaml` and updates the chart's `CHANGELOG.md`. Merging it creates
-  the tag `<chart>-v<version>` and the GitHub release.
+- release-please opens a single release pull request covering every chart
+  with unreleased changes: it bumps `version` in each `Chart.yaml` and updates
+  each chart's `CHANGELOG.md`. Merging it creates one tag `<chart>-v<version>`
+  and one GitHub release per chart.
 - The release workflow then packages the chart, pushes it to GHCR as an OCI
   artifact, signs it with cosign (keyless, GitHub OIDC) and attests its
   provenance.
@@ -32,6 +33,11 @@ its dependents.
   released commit. Shipping a library change in an application chart takes a
   commit scoped to that chart.
 - Release tags `<chart>-vX.Y.Z` are immutable (ruleset `release-tags`).
+- One release pull request, not one per chart (`separate-pull-requests:
+  false`), and `always-update: true`. With separate pull requests and a
+  shared manifest, merging one left the other conflicting on the manifest,
+  and release-please did not repair it: it only compares a pull request's
+  title and body. Seen on the first releases (0.1.0).
 
 ## Consequences
 - Versions follow the commit history: a `feat!` or `BREAKING CHANGE` footer
