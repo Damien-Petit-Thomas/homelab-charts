@@ -1,0 +1,43 @@
+{{- $r := .Values.rules }}
+
+{{- if $r.imageDigest.enabled }}
+{{ include "homelab-policies.rule" (dict "context" $ "name" "image-digest" "validations" (list
+      (dict
+        "expression" "variables.images.all(i, i.matches('@sha256:[a-f0-9]{64}$'))"
+        "messageExpression" "'images must be pinned by digest (name[:tag]@sha256:...): ' + variables.images.filter(i, !i.matches('@sha256:[a-f0-9]{64}$')).join(', ')"))) }}
+{{- end }}
+
+{{- if $r.noLatestTag.enabled }}
+{{- /*
+A tag is the part after the last ":" that has no "/" after it, so a
+registry port (host:5000/app) is not mistaken for one.
+*/}}
+{{ include "homelab-policies.rule" (dict "context" $ "name" "image-no-latest" "validations" (list
+      (dict
+        "expression" "variables.images.all(i, !i.matches(':latest(@|$)'))"
+        "messageExpression" "'the latest tag is not allowed: ' + variables.images.filter(i, i.matches(':latest(@|$)')).join(', ')")
+      (dict
+        "expression" "variables.images.all(i, i.contains('@') || i.matches(':[^/@]+$'))"
+        "messageExpression" "'images need a tag or a digest (no implicit latest): ' + variables.images.filter(i, !(i.contains('@') || i.matches(':[^/@]+$'))).join(', ')"))) }}
+{{- end }}
+
+{{- if $r.allowedRegistries.enabled }}
+{{- if not $r.allowedRegistries.registries }}
+{{- fail "homelab-policies: rules.allowedRegistries.registries must list at least one prefix when the rule is enabled" }}
+{{- end }}
+{{- range $r.allowedRegistries.registries }}
+{{- if not (hasSuffix "/" .) }}
+{{- fail (printf "homelab-policies: registry prefix %q must end with \"/\" (else \"ghcr.io\" would also allow \"ghcr.io.evil.example\")" .) }}
+{{- end }}
+{{- end }}
+{{- /*
+An image whose first path segment has no "." nor ":" and is not
+"localhost" has no registry host: it is pulled from docker.io.
+*/}}
+{{- $normalize := "(i.matches('^([^/]*[.:][^/]*|localhost)/') ? i : 'docker.io/' + i)" }}
+{{- $allowed := toJson $r.allowedRegistries.registries }}
+{{ include "homelab-policies.rule" (dict "context" $ "name" "image-registries" "validations" (list
+      (dict
+        "expression" (printf "variables.images.all(i, %s.exists(p, %s.startsWith(p)))" $allowed $normalize)
+        "messageExpression" (printf "'images must come from %s: ' + variables.images.filter(i, !%s.exists(p, %s.startsWith(p))).join(', ')" (join ", " $r.allowedRegistries.registries) $allowed $normalize)))) }}
+{{- end }}

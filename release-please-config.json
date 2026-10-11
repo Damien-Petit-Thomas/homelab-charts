@@ -18,6 +18,9 @@
     },
     "charts/vaultwarden": {
       "component": "vaultwarden"
+    },
+    "charts/homelab-policies": {
+      "component": "homelab-policies"
     }
   }
 }
