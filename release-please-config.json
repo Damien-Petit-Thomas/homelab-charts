@@ -4,13 +4,18 @@
   "include-component-in-tag": true,
   "include-v-in-tag": true,
   "tag-separator": "-",
+  "initial-version": "0.1.0",
   "bump-minor-pre-major": true,
   "bump-patch-for-minor-pre-major": false,
   "bootstrap-sha": "5cf27a96687409b4b1b3053b001d985c4e56176c",
   "separate-pull-requests": true,
-  "pull-request-title-pattern": "chore${scope}: release ${component} ${version}",
+  "pull-request-title-pattern": "chore: release${component} ${version}",
   "packages": {
-    "charts/homelab-common": { "component": "homelab-common" },
-    "charts/vaultwarden": { "component": "vaultwarden" }
+    "charts/homelab-common": {
+      "component": "homelab-common"
+    },
+    "charts/vaultwarden": {
+      "component": "vaultwarden"
+    }
   }
 }
