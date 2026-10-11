@@ -289,3 +289,49 @@
   file: charts/vaultwarden/templates/tests/test-alive.yaml
   find: 'helm.sh/hook-delete-policy: before-hook-creation'
   replace: 'helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded'
+
+# homelab-policies
+- description: init containers escape the policies
+  chart: charts/homelab-policies
+  file: charts/homelab-policies/templates/_policy.tpl
+  find: "(has(variables.podSpec.initContainers) ? variables.podSpec.initContainers.map(c, c.image) : []) +"
+  replace: ""
+- description: opted-in namespaces only warn
+  chart: charts/homelab-policies
+  file: charts/homelab-policies/templates/_policy.tpl
+  find: "validationActions: [Deny]"
+  replace: "validationActions: [Warn]"
+- description: excluded namespaces are evaluated
+  chart: charts/homelab-policies
+  file: charts/homelab-policies/templates/_policy.tpl
+  find: |2-
+            - key: kubernetes.io/metadata.name
+              operator: NotIn
+              values:
+                {{- toYaml $v.excludedNamespaces | nindent 12 }}
+  replace: ""
+- description: policies fail open
+  chart: charts/homelab-policies
+  file: charts/homelab-policies/values.yaml
+  find: "failurePolicy: Fail"
+  replace: "failurePolicy: Ignore"
+- description: CronJobs are not evaluated
+  chart: charts/homelab-policies
+  file: charts/homelab-policies/templates/_policy.tpl
+  find: 'resources: ["jobs", "cronjobs"]'
+  replace: 'resources: ["jobs"]'
+- description: a prefix without trailing slash is accepted (look-alike hosts)
+  chart: charts/homelab-policies
+  file: charts/homelab-policies/templates/policies.yaml
+  find: '{{- if not (hasSuffix "/" .) }}'
+  replace: '{{- if false }}'
+- description: implicit docker.io is not normalized
+  chart: charts/homelab-policies
+  file: charts/homelab-policies/templates/policies.yaml
+  find: "{{- $normalize := \"(i.matches('^([^/]*[.:][^/]*|localhost)/') ? i : 'docker.io/' + i)\" }}"
+  replace: '{{- $normalize := "i" }}'
+- description: digest rule accepts a short digest
+  chart: charts/homelab-policies
+  file: charts/homelab-policies/templates/policies.yaml
+  find: "\"expression\" \"variables.images.all(i, i.matches('@sha256:[a-f0-9]{64}$'))\""
+  replace: "\"expression\" \"variables.images.all(i, i.matches('@sha256:'))\""

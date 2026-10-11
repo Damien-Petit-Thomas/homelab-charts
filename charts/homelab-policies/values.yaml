@@ -1,0 +1,44 @@
+# -- Prefix of every policy and binding name.
+namePrefix: homelab-
+
+# Namespaces opt in to Deny with this label, typically set in the namespace
+# manifest of an application once it complies. Everywhere else the policies
+# only warn (kubectl, ArgoCD) and write audit annotations.
+enforceLabel:
+  # -- Label key.
+  key: homelab.internal/policies
+  # -- Label value that switches a namespace to Deny.
+  value: enforce
+
+# -- Namespaces never evaluated (cluster add-ons managed outside Git).
+excludedNamespaces:
+  - kube-system
+  - kube-public
+  - kube-node-lease
+
+# -- Actions of the bindings outside opted-in namespaces.
+auditActions:
+  - Warn
+  - Audit
+
+# -- Failure policy: Fail rejects an object when a policy cannot be evaluated
+# (an unexpected object shape) instead of letting it through.
+failurePolicy: Fail
+
+rules:
+  imageDigest:
+    # -- Every image pinned by digest (name[:tag]@sha256:<64 hex>).
+    enabled: true
+  noLatestTag:
+    # -- No `latest` tag, and no image without tag nor digest.
+    enabled: true
+  allowedRegistries:
+    # -- Images only from the registries below.
+    enabled: true
+    # -- Allowed prefixes, matched against the normalized reference (an image
+    # without registry host is docker.io/<name>). End each one with "/".
+    registries:
+      - docker.io/
+      - ghcr.io/
+      - quay.io/
+      - registry.k8s.io/

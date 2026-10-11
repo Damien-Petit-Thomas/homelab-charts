@@ -1,0 +1,20 @@
+apiVersion: v2
+name: homelab-policies
+description: >-
+  ValidatingAdmissionPolicies enforcing the homelab image conventions
+  (digest-pinned, no latest tag, allowed registries) on every workload,
+  whatever chart rendered it: Warn and Audit everywhere, Deny in opted-in
+  namespaces.
+type: application
+version: 0.1.0
+kubeVersion: ">=1.34.0-0"
+home: https://github.com/Damien-Petit-Thomas/homelab-charts
+sources:
+  - https://github.com/Damien-Petit-Thomas/homelab-charts/tree/main/charts/homelab-policies
+keywords:
+  - admission
+  - policy
+  - supply-chain
+maintainers:
+  - name: Damien Petit-Thomas
+    url: https://github.com/Damien-Petit-Thomas
