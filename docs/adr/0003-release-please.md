@@ -38,6 +38,11 @@ its dependents.
   shared manifest, merging one left the other conflicting on the manifest,
   and release-please did not repair it: it only compares a pull request's
   title and body. Seen on the first releases (0.1.0).
+- The grouped release pull request keeps release-please's default title
+  (`chore: release ${branch}`). After a merge, release-please parses the title
+  to build the releases: a custom title without `${component}` or
+  `${version}` (`chore: release charts`) left homelab-policies 0.1.0
+  unreleased until the merged pull request was retitled.
 
 ## Consequences
 - Versions follow the commit history: a `feat!` or `BREAKING CHANGE` footer
