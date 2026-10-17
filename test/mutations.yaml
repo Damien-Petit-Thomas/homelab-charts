@@ -264,6 +264,24 @@
   file: charts/vaultwarden/templates/ingress.yaml
   find: '{{- $_ := required "vaultwarden: ingress.host is required when ingress.enabled is true" .Values.ingress.host }}'
   replace: ''
+- description: ingress tls.enabled ignored
+  chart: charts/vaultwarden
+  file: charts/vaultwarden/templates/ingress.yaml
+  find: '{{- if or .Values.ingress.tls.enabled .Values.ingress.tls.secretName }}'
+  replace: '{{- if .Values.ingress.tls.secretName }}'
+- description: ingress TLS rendered when disabled
+  chart: charts/vaultwarden
+  file: charts/vaultwarden/templates/ingress.yaml
+  find: '{{- if or .Values.ingress.tls.enabled .Values.ingress.tls.secretName }}'
+  replace: '{{- if true }}'
+- description: empty ingress TLS secretName rendered
+  chart: charts/vaultwarden
+  file: charts/vaultwarden/templates/ingress.yaml
+  find: |-
+    {{- with .Values.ingress.tls.secretName }}
+          secretName: {{ . }}
+          {{- end }}
+  replace: 'secretName: {{ .Values.ingress.tls.secretName | quote }}'
 - description: unknown keys accepted under sso
   chart: charts/vaultwarden
   file: charts/vaultwarden/values.schema.json
