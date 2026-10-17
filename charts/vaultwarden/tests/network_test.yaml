@@ -46,6 +46,27 @@ tests:
             port:
               name: http
 
+  - it: uses the controller's default certificate when TLS has no secret
+    template: templates/ingress.yaml
+    set:
+      ingress.enabled: true
+      ingress.host: vaultwarden.example.org
+      ingress.tls.enabled: true
+    asserts:
+      - equal:
+          path: spec.tls
+          value:
+            - hosts: [vaultwarden.example.org]
+
+  - it: renders no TLS section unless TLS is enabled
+    template: templates/ingress.yaml
+    set:
+      ingress.enabled: true
+      ingress.host: vaultwarden.example.org
+    asserts:
+      - notExists:
+          path: spec.tls
+
   - it: requires a host when the Ingress is enabled
     template: templates/ingress.yaml
     set:

@@ -137,7 +137,10 @@
         "tls": {
           "type": "object",
           "additionalProperties": false,
-          "properties": { "secretName": { "type": "string" } }
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "secretName": { "type": "string" }
+          }
         }
       }
     },

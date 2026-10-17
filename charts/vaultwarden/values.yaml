@@ -130,7 +130,11 @@ ingress:
   # -- Host name (required when enabled).
   host: ""
   tls:
-    # -- TLS Secret name (empty: no TLS section).
+    # -- Serve the host over TLS. With an empty `secretName`, the ingress
+    # controller presents its default certificate (for example a wildcard in
+    # Traefik's default TLSStore).
+    enabled: false
+    # -- TLS Secret name. Setting it also enables TLS.
     secretName: ""
 
 networkPolicy:
