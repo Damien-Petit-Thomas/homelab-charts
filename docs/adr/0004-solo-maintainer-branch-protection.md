@@ -10,6 +10,9 @@ Same policy as [homelab-ci-templates ADR 0004](https://github.com/Damien-Petit-T
 - Required status checks: `ci-ok` (an aggregator that needs every CI job)
   and `zizmor` (Code Scanning).
 - Force pushes and deletions of `main` blocked.
+- Rebase merges only (ruleset and repository settings): every reviewed
+  commit lands on `main` as written, and no merge commit repeats a pull
+  request title (see [ADR 0003](0003-release-please.md)).
 - The ruleset is exported to `.github/rulesets/` with
   `scripts/export-ruleset.sh`.
 

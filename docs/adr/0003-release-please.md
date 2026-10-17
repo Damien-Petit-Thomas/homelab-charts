@@ -43,6 +43,11 @@ its dependents.
   to build the releases: a custom title without `${component}` or
   `${version}` (`chore: release charts`) left homelab-policies 0.1.0
   unreleased until the merged pull request was retitled.
+- Pull requests merge by rebase only (ruleset, [ADR 0004](0004-solo-maintainer-branch-protection.md)).
+  A merge commit carries the pull request title in every message format
+  GitHub allows: release-please parsed it as a second conventional commit,
+  and the `vaultwarden` 0.2.0 changelog listed its feature twice. A squash
+  merge would avoid that but replace the reviewed commits with one message.
 
 ## Consequences
 - Versions follow the commit history: a `feat!` or `BREAKING CHANGE` footer
