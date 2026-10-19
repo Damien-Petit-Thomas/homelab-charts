@@ -5,7 +5,6 @@
 
 ### Features
 
-* **vaultwarden:** TLS from the ingress controller's default certificate ([e07562c](https://github.com/Damien-Petit-Thomas/homelab-charts/commit/e07562c942e9c49b100ba439604601b5a8f2e580))
 * **vaultwarden:** TLS from the ingress controller's default certificate ([73c330b](https://github.com/Damien-Petit-Thomas/homelab-charts/commit/73c330b42e438314efa30134b2c67f37544c2acc))
 
 ## 0.1.0 (2026-10-11)
