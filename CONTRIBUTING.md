@@ -42,8 +42,9 @@ provenance, then verifies both. Nothing is published by hand.
 
 `main` accepts pull requests only. A pull request merges when `ci-ok` and
 `zizmor` pass, by rebase only: each commit lands as written, so each one is
-a reviewed Conventional Commit. A new CI job must be added to the `needs` of `ci-ok`, never to
-the ruleset ([ADR 0004](docs/adr/0004-solo-maintainer-branch-protection.md)).
+a reviewed Conventional Commit. A new CI job must be added to the `needs`
+of `ci-ok`, never to the ruleset
+([ADR 0004](docs/adr/0004-solo-maintainer-branch-protection.md)).
 
 ## Tests
 
