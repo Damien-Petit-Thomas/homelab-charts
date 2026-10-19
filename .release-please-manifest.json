@@ -1,5 +1,5 @@
 {
   "charts/homelab-common": "0.1.0",
-  "charts/vaultwarden": "0.1.0",
+  "charts/vaultwarden": "0.2.0",
   "charts/homelab-policies": "0.1.0"
 }
